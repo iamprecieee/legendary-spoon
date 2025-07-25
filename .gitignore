@@ -1,0 +1,7 @@
+alembic/versions/*
+db.sqlite3
+__pycache__/
+.env
+.sql
+.venv/
+logs/
