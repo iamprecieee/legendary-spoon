@@ -7,9 +7,10 @@ from pydantic import dataclasses, field_validator
 @dataclasses.dataclass
 class User:
     email: str
-    password: str
+    password: str = ""  # Optional for OAuth users
     is_active: bool = True
     created_at: datetime | None = None
+    social_id: str | None = None
     id: int | None = None
 
     @field_validator("email")

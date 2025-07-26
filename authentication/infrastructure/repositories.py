@@ -31,8 +31,9 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
             e.orig = "Failed to create refresh token"
             raise e
         except Exception as e:
-            logger.exception(
-                f"Unhandled exception occurred while creating refresh_token: {e}"
+            self._db.rollback()
+            logger.error(
+                f"💥 Unhandled exception occurred while creating refresh_token: {e}"
             )
 
         return self._to_domain_model(refresh_token)
@@ -95,8 +96,9 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
             e.orig = "Failed to blacklist token"
             raise e
         except Exception as e:
-            logger.exception(
-                f"Unhandled exception occurred while blacklisting token: {e}"
+            self._db.rollback()
+            logger.error(
+                f"💥 Unhandled exception occurred while blacklisting token: {e}"
             )
 
     def is_token_blacklisted(self, token: str, raise_error: bool = False) -> bool:

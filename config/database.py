@@ -40,18 +40,17 @@ def get_db():
             session.close()
 
 
+def create_tables():
+    """
+    Creates all tables in the database based on SQLModel metadata.
+    """
+
+    engine = get_engine()
+    SQLModel.metadata.create_all(engine)
+
+
 def run_migrations():
     """Runs Alembic migrations to upgrade the database schema to the latest version."""
 
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
-
-
-def create_tables():
-    """
-    Creates all tables in the database based on SQLModel metadata.
-    Used as a fallback if migrations fail.
-    """
-
-    engine = get_engine()
-    SQLModel.metadata.create_all(engine)

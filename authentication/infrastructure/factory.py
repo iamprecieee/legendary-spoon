@@ -1,7 +1,11 @@
 from fastapi import Depends
 from sqlmodel import Session
 
-from authentication.infrastructure.services import JWTTokenService, PasswordService
+from authentication.infrastructure.services import (
+    GoogleOAuthService,
+    JWTTokenService,
+    PasswordService,
+)
 from config.base import Settings, get_settings
 from config.database import get_db
 
@@ -33,3 +37,9 @@ async def get_jwt_token_service(
     settings: Settings = Depends(get_settings),
 ) -> JWTTokenService:
     return JWTTokenService(settings)
+
+
+async def get_google_oauth_service(
+    settings: Settings = Depends(get_settings),
+) -> GoogleOAuthService:
+    return GoogleOAuthService(settings)

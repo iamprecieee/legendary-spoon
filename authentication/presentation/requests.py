@@ -10,6 +10,10 @@ class UserLoginRequest(UserCreateRequest):
     pass
 
 
+class UserOAuthLoginRequest(BaseModel):
+    pass
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 

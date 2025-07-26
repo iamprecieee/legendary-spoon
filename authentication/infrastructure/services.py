@@ -3,15 +3,21 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
+import httpx
 import jwt
 from fastapi import HTTPException, status
 from jwt.exceptions import InvalidTokenError
+from loguru import logger
 from passlib.context import CryptContext
 
 from config.base import Settings
 from users.domain.entities import User as DomainUser
 
-from ..application.ports import JWTTokenServiceInterface, PasswordServiceInterface
+from ..application.ports import (
+    JWTTokenServiceInterface,
+    OAuthServiceInterface,
+    PasswordServiceInterface,
+)
 
 
 class PasswordService(PasswordServiceInterface):
@@ -26,6 +32,8 @@ class PasswordService(PasswordServiceInterface):
         return self.pwd_context.hash(salted_password)
 
     def check_password(self, raw_password: str, hashed_password: str) -> bool:
+        self._ensure_strong_password(raw_password)
+
         salted_password = (raw_password + self._settings.secret_key).encode("utf-8")
         return self.pwd_context.verify(salted_password, hashed_password)
 
@@ -41,6 +49,11 @@ class PasswordService(PasswordServiceInterface):
 
         if not re.search(r"[!@#$%^&*()+\-=\;':,.<>?~]", password):
             raise ValueError("Password must contain at least one special character.")
+
+        if len(password) < self._settings.min_password_length:
+            raise ValueError(
+                f"Password must be at least {self._settings.min_password_length} characters long."
+            )
 
 
 class JWTTokenService(JWTTokenServiceInterface):
@@ -117,13 +130,14 @@ class JWTTokenService(JWTTokenServiceInterface):
 
             return DomainUser(**payload_data)
 
-        except InvalidTokenError:
+        except InvalidTokenError as e:
+            logger.error(f"💥 Invalid access token: {e}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication token",
-            )
+            ) from e
 
-    def decode_refresh_token(self, token: str) -> dict | None:
+    def decode_refresh_token(self, token: str) -> Dict[str, Any] | None:
         try:
             payload = self.decode_jwt_token(token)
             if payload.get("type") != "refresh":
@@ -136,8 +150,78 @@ class JWTTokenService(JWTTokenServiceInterface):
 
             return payload
 
-        except InvalidTokenError:
+        except InvalidTokenError as e:
+            logger.error(f"💥 Invalid refresh token: {e}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid refresh token",
-            )
+            ) from e
+
+
+class GoogleOAuthService(OAuthServiceInterface):
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+
+    def get_authorization_url(self, state: str) -> str:
+        return (
+            f"https://accounts.google.com/o/oauth2/auth?response_type=code"
+            f"&client_id={self._settings.google_client_id}"
+            f"&redirect_uri={self._settings.google_redirect_uri}"
+            f"&scope=email%20profile"
+            f"&state={state}"
+            f"&access_type=offline"
+            f"&prompt=consent"
+        )
+
+    async def exchange_auth_code(self, auth_code: str) -> Dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    self._get_google_token_url(),
+                    data={
+                        "code": auth_code,
+                        "client_id": self._settings.google_client_id,
+                        "client_secret": self._settings.google_client_secret,
+                        "redirect_uri": self._settings.google_redirect_uri,
+                        "grant_type": "authorization_code",
+                    },
+                )
+
+                response.raise_for_status()
+                return response.json()
+
+            except httpx.HTTPStatusError as e:
+                logger.error(f"💥 Error exchanging auth code: {e}")
+                logger.error(
+                    f"Response content: {e.response.text if hasattr(e, 'response') else 'No response content'}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to exchange authorization code",
+                ) from e
+
+    async def fetch_user_info(self, access_token: str) -> Dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    self._get_google_user_info_url(),
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                response.raise_for_status()
+                return response.json()
+
+            except httpx.HTTPStatusError as e:
+                logger.error(f"💥 Error fetching user info: {e}")
+                logger.error(
+                    f"Response content: {e.response.text if hasattr(e, 'response') else 'No response content'}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to fetch user information",
+                ) from e
+
+    def _get_google_token_url(self) -> str:
+        return "https://oauth2.googleapis.com/token"
+
+    def _get_google_user_info_url(self) -> str:
+        return "https://www.googleapis.com/oauth2/v3/userinfo"

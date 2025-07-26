@@ -1,4 +1,5 @@
 from fastapi import Depends, HTTPException, status
+from loguru import logger
 from sqlmodel import Session
 
 from authentication.application.rules import CurrentUserRule
@@ -44,6 +45,7 @@ async def get_current_user(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"💥 Error retrieving current user: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

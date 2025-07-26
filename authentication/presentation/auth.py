@@ -12,16 +12,19 @@ from ..application.rules import (
     CreateUserRule,
     LoginUserRule,
     LogoutRule,
+    OAuthCallbackRule,
+    OAuthLoginRule,
     RefreshTokenRule,
 )
 from ..infrastructure.factory import (
     get_blacklist_token_repository,
+    get_google_oauth_service,
     get_jwt_token_service,
     get_password_service,
     get_refresh_token_repository,
 )
 from .requests import LogoutRequest, RefreshRequest, UserCreateRequest, UserLoginRequest
-from .responses import LoginResponse, TokenResponse, UserResponse
+from .responses import LoginResponse, OAuthLoginResponse, TokenResponse, UserResponse
 
 router = APIRouter(prefix="/auth")
 
@@ -152,4 +155,40 @@ async def logout_user(
 
     return SuccessResponse(
         data={"message": "Logged out successfully"}, message="Logout successful"
+    )
+
+
+@router.get("/google/login", response_model=SuccessResponse, status_code=200)
+async def google_login(
+    oauth_service=Depends(get_google_oauth_service),
+):
+    google_login_rule = OAuthLoginRule(oauth_service=oauth_service)
+    oauth_url = google_login_rule.execute()
+    return SuccessResponse(
+        data=OAuthLoginResponse(oauth_url=oauth_url),
+        message="Redirect to the OAuth provider for login.",
+    )
+
+
+@router.get("/google/callback", response_model=SuccessResponse, status_code=200)
+async def google_callback(
+    code: str,
+    oauth_service=Depends(get_google_oauth_service),
+    user_repository=Depends(get_user_repository),
+    token_service=Depends(get_jwt_token_service),
+    refresh_token_repository=Depends(get_refresh_token_repository),
+):
+    oauth_callback_rule = OAuthCallbackRule(
+        auth_code=code,
+        oauth_service=oauth_service,
+        user_repository=user_repository,
+        token_service=token_service,
+        refresh_token_repository=refresh_token_repository,
+    )
+
+    user_data, token_data, is_new_user = await oauth_callback_rule.execute()
+
+    return SuccessResponse(
+        data=LoginResponse(**user_data.__dict__, **token_data.__dict__),
+        message=f"User {'created' if is_new_user else 'logged in'} successfully via OAuth",
     )

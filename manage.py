@@ -1,9 +1,12 @@
-import subprocess
-
 import click
 
-from alembic import command
-from alembic.config import Config
+
+def import_alembic():
+    """Import Alembic command and Config."""
+    from alembic import command
+    from alembic.config import Config
+
+    return command, Config
 
 
 @click.group()
@@ -18,6 +21,8 @@ def cli():
 def makemigrations(message):
     """Create a new Alembic migration with the given message."""
 
+    command, Config = import_alembic()
+
     alembic_cfg = Config("alembic.ini")
     command.revision(alembic_cfg, autogenerate=True, message=message)
     click.echo(f"Migration created: {message}")
@@ -26,6 +31,8 @@ def makemigrations(message):
 @cli.command()
 def migrate():
     """Apply all pending Alembic migrations."""
+
+    command, Config = import_alembic()
 
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
@@ -36,20 +43,41 @@ def migrate():
 def runserver():
     """Run the FastAPI development server."""
 
-    subprocess.check_call(["python3", "main.py"])
+    import runpy
+
+    runpy.run_module("main", run_name="__main__")
 
 
 @cli.command()
 def clean():
     """Remove Python cache and Ruff cache directories."""
 
-    subprocess.check_call(
-        "find . -name '__pycache__' -type d -exec rm -rf {} +", shell=True
-    )
-    subprocess.check_call(
-        "find . -name '.ruff_cache' -type d -exec rm -rf {} +", shell=True
-    )
-    subprocess.check_call("find . -name '.pyc' -type d -exec rm -rf {} +", shell=True)
+    import os
+    import shutil
+
+    for root, dirs, files in os.walk("."):
+        for dir_name in dirs:
+            if dir_name == "__pycache__" or dir_name == ".ruff_cache":
+                shutil.rmtree(os.path.join(root, dir_name))
+        for file_name in files:
+            if file_name.endswith(".pyc"):
+                os.remove(os.path.join(root, file_name))
+
+    click.echo("Cleaned Python cache and Ruff cache directories.")
+
+
+@cli.command()
+def format():
+    """Format the codebase using Isort and Ruff."""
+    import subprocess
+
+    try:
+        subprocess.run(["uv", "tool", "run", "isort", "."], check=True)
+        subprocess.run(["uv", "tool", "run", "ruff", "format", "."], check=True)
+        click.echo("Code formatted successfully.")
+    except subprocess.CalledProcessError as e:
+        click.echo(f"Formatting failed: {str(e)}", err=True)
+        return
 
 
 if __name__ == "__main__":

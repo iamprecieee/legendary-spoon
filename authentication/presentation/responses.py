@@ -9,6 +9,10 @@ class LoginResponse(UserResponse):
     token_type: str = "bearer"
 
 
+class OAuthLoginResponse(BaseModel):
+    oauth_url: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str

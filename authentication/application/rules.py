@@ -7,6 +7,7 @@ from ..domain.entities import BlacklistedToken, RefreshToken, TokenPair
 from .ports import (
     BlacklistTokenRepository,
     JWTTokenServiceInterface,
+    OAuthServiceInterface,
     PasswordServiceInterface,
     RefreshTokenRepository,
 )
@@ -91,6 +92,75 @@ class LoginUserRule(AuthenticateUserRule):
         token_pair = TokenPair(access_token=access_token, refresh_token=refresh_token)
 
         return existing_user, token_pair
+
+
+class OAuthLoginRule:
+    def __init__(
+        self,
+        oauth_service: OAuthServiceInterface,
+    ) -> None:
+        self.oauth_service = oauth_service
+
+    def execute(self) -> str:
+        import secrets
+
+        state = secrets.token_urlsafe(32)
+        return self.oauth_service.get_authorization_url(state)
+
+
+class OAuthCallbackRule:
+    def __init__(
+        self,
+        auth_code: str,
+        oauth_service: OAuthServiceInterface,
+        user_repository: UserRepository,
+        token_service: JWTTokenServiceInterface,
+        refresh_token_repository: RefreshTokenRepository,
+    ) -> None:
+        self.auth_code = auth_code
+        self.oauth_service = oauth_service
+        self.user_repository = user_repository
+        self.token_service = token_service
+        self.refresh_token_repository = refresh_token_repository
+
+    async def execute(self) -> Tuple[DomainUser, TokenPair, bool]:
+        token_data = await self.oauth_service.exchange_auth_code(self.auth_code)
+
+        access_token = token_data.get("access_token")
+
+        user_info = await self.oauth_service.fetch_user_info(access_token)
+        user_info.update({"id": user_info.get("sub", user_info.get("id"))})
+
+        social_user = self.user_repository.get_by_social_id(social_id=user_info["id"])
+        is_new_user = False
+
+        if social_user:
+            pass
+        else:
+            try:
+                social_user = self.user_repository.get_by_email(user_info["email"])
+                self.user_repository.link_social_account(
+                    user_email=social_user.email, social_data=user_info
+                )
+            except Exception:
+                social_user = self.user_repository.create(
+                    DomainUser(email=user_info["email"], password="")
+                )
+                is_new_user = True
+
+        access_token = self.token_service.create_access_token(social_user)
+        refresh_token = self.token_service.create_refresh_token(social_user)
+
+        # Store the refresh token in the repository
+        refresh_token_entity = RefreshToken(
+            token=refresh_token,
+            user_id=social_user.id,
+        )
+        self.refresh_token_repository.create(refresh_token_entity)
+
+        token_pair = TokenPair(access_token=access_token, refresh_token=refresh_token)
+
+        return social_user, token_pair, is_new_user
 
 
 class CurrentUserRule:
