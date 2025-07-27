@@ -39,6 +39,20 @@ class JWTTokenServiceInterface(ABC):
         pass
 
 
+class OAuthServiceInterface(ABC):
+    @abstractmethod
+    def get_authorization_url(self, state: str) -> str:
+        pass
+
+    @abstractmethod
+    async def exchange_auth_code(self, auth_code: str) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def fetch_user_info(self, access_token: str) -> Dict[str, Any]:
+        pass
+
+
 class RefreshTokenRepository(ABC):
     @abstractmethod
     def create(self, refresh_token: DomainRefreshToken) -> DomainRefreshToken:
@@ -60,18 +74,4 @@ class BlacklistTokenRepository(ABC):
 
     @abstractmethod
     def is_token_blacklisted(self, token: str, raise_error: bool = False) -> bool:
-        pass
-
-
-class OAuthServiceInterface(ABC):
-    @abstractmethod
-    def get_authorization_url(self, state: str) -> str:
-        pass
-
-    @abstractmethod
-    async def exchange_auth_code(self, auth_code: str) -> Dict[str, Any]:
-        pass
-
-    @abstractmethod
-    async def fetch_user_info(self, access_token: str) -> Dict[str, Any]:
         pass

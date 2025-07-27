@@ -11,7 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 def normalize_error_detail(detail: Any) -> str | List[str] | Dict[str, Any]:
-    """Normalize the error detail to a string, list of strings, or dict for consistent API responses."""
+    """Normalize the error detail to a string, list, or dict for consistent API responses."""
 
     if isinstance(detail, str):
         return detail
@@ -60,8 +60,24 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             status_code=status.HTTP_409_CONFLICT, content=custom_response_data
         )
 
-    # Handle Pydantic validation errors
-    if isinstance(exc, ValidationError):
+    # Handle generic SQLAlchemy errors
+    if isinstance(exc, SQLAlchemyError):
+        custom_response_data.update(
+            {
+                "message": "Database error occurred",
+                "errors": {"detail": "A database error occurred"},
+                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            }
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=custom_response_data,
+        )
+
+    # Handle [Pydantic/FastAPI request/FastAPI response] validation errors
+    if isinstance(
+        exc, (ValidationError, RequestValidationError, ResponseValidationError)
+    ):
         errors = {}
         for error in exc.errors():
             field = ".".join(str(x) for x in error["loc"])
@@ -70,44 +86,6 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         custom_response_data.update(
             {
                 "message": "Validation error",
-                "errors": errors,
-                "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY,
-            }
-        )
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content=custom_response_data,
-        )
-
-    # Handle FastAPI request validation errors
-    if isinstance(exc, RequestValidationError):
-        errors = {}
-        for error in exc.errors():
-            field = ".".join(str(x) for x in error["loc"])
-            errors[field] = error["msg"]
-
-        custom_response_data.update(
-            {
-                "message": "Request validation error",
-                "errors": errors,
-                "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY,
-            }
-        )
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content=custom_response_data,
-        )
-
-    # Handle FastAPI response validation errors
-    if isinstance(exc, ResponseValidationError):
-        errors = {}
-        for error in exc.errors():
-            field = ".".join(str(x) for x in error["loc"])
-            errors[field] = error["msg"]
-
-        custom_response_data.update(
-            {
-                "message": "Response validation error",
                 "errors": errors,
                 "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY,
             }
@@ -169,20 +147,6 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             }
         )
         return JSONResponse(status_code=exc.status_code, content=custom_response_data)
-
-    # Handle generic SQLAlchemy errors
-    if isinstance(exc, SQLAlchemyError):
-        custom_response_data.update(
-            {
-                "message": "Database error occurred",
-                "errors": {"detail": "A database error occurred"},
-                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-            }
-        )
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=custom_response_data,
-        )
 
     # For all other unhandled exceptions, log and return a generic 500 error
     tb = traceback.extract_tb(exc.__traceback__)

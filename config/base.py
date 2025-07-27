@@ -5,18 +5,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    secret_key: str
-    algorithm: str
-    min_password_length: int = 8
-    expires_delta: int  # minutes
     access_token_expiry: int  # minutes
-    refresh_token_expiry: int  # days
+    algorithm: str
+    expires_delta: int  # minutes
     logging_level: str
+    refresh_token_expiry: int  # days
+    secret_key: str
+    base_dir: Path = Path(__file__).resolve().parent.parent
+    environment: str = "development"
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = ""
-    environment: str = "development"
-    base_dir: Path = Path(__file__).resolve().parent.parent
+    min_password_length: int = 8
     logs_dir: Path = base_dir / "logs"
     log_file: Path = logs_dir / "phantom.log"
     ssl_certfile_path: str | None = None

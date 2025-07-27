@@ -7,7 +7,7 @@ from authentication.infrastructure.services import (
     PasswordService,
 )
 from config.base import Settings, get_settings
-from config.database import get_db
+from config.database import get_database_session
 
 from ..infrastructure.repositories import (
     BlacklistTokenRepository,
@@ -16,15 +16,15 @@ from ..infrastructure.repositories import (
 
 
 async def get_refresh_token_repository(
-    db: Session = Depends(get_db),
+    session: Session = Depends(get_database_session),
 ) -> RefreshTokenRepository:
-    return RefreshTokenRepository(db)
+    return RefreshTokenRepository(session)
 
 
 async def get_blacklist_token_repository(
-    db: Session = Depends(get_db),
+    session: Session = Depends(get_database_session),
 ) -> BlacklistTokenRepository:
-    return BlacklistTokenRepository(db)
+    return BlacklistTokenRepository(session)
 
 
 async def get_password_service(

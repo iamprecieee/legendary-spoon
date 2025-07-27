@@ -12,7 +12,7 @@ from authentication.infrastructure.factory import (
 )
 from authentication.infrastructure.repositories import BlacklistTokenRepository
 from authentication.infrastructure.services import JWTTokenService
-from config.database import get_db
+from config.database import get_database_session
 
 from ..domain.entities import User as DomainUser
 from .repositories import UserRepository
@@ -20,8 +20,10 @@ from .repositories import UserRepository
 oauth2_scheme = OAuth2PasswordBearerWithEmail(tokenUrl="/auth/token")
 
 
-async def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
-    return UserRepository(db)
+async def get_user_repository(
+    session: Session = Depends(get_database_session),
+) -> UserRepository:
+    return UserRepository(session)
 
 
 async def get_current_user(

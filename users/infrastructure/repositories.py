@@ -11,18 +11,18 @@ from ..infrastructure.models import User
 
 
 class UserRepository(DomainUserRepository):
-    def __init__(self, db: Session) -> None:
-        self._db = db
+    def __init__(self, session: Session) -> None:
+        self._session = session
 
     def create(self, user: DomainUser) -> DomainUser:
         user = self._to_pydantic_model(user)
 
-        self._db.add(user)
+        self._session.add(user)
         try:
-            self._db.commit()
-            self._db.refresh(user)
+            self._session.commit()
+            self._session.refresh(user)
         except IntegrityError as e:
-            self._db.rollback()
+            self._session.rollback()
 
             # Provide a clearer error message if the email is duplicated
             e.orig = (
@@ -32,7 +32,7 @@ class UserRepository(DomainUserRepository):
             )
             raise e
         except Exception as e:
-            self._db.rollback()
+            self._session.rollback()
             logger.error(f"💥 Unhandled exception occurred while creating user: {e}")
 
             raise HTTPException(
@@ -43,7 +43,9 @@ class UserRepository(DomainUserRepository):
         return self._to_domain_model(user)
 
     def get_by_email(self, email: str) -> DomainUser:
-        pydantic_user = self._db.exec(select(User).where(User.email == email)).first()
+        pydantic_user = self._session.exec(
+            select(User).where(User.email == email)
+        ).first()
         if not pydantic_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -52,7 +54,9 @@ class UserRepository(DomainUserRepository):
         return self._to_domain_model(pydantic_user)
 
     def get_by_id(self, user_id: int) -> DomainUser:
-        pydantic_user = self._db.exec(select(User).where(User.id == user_id)).first()
+        pydantic_user = self._session.exec(
+            select(User).where(User.id == user_id)
+        ).first()
         if not pydantic_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -61,7 +65,7 @@ class UserRepository(DomainUserRepository):
         return self._to_domain_model(pydantic_user)
 
     def get_by_social_id(self, social_id: str) -> DomainUser | None:
-        pydantic_user = self._db.exec(
+        pydantic_user = self._session.exec(
             select(User).where(User.social_id == social_id)
         ).first()
         if not pydantic_user:
@@ -72,7 +76,7 @@ class UserRepository(DomainUserRepository):
     def link_social_account(
         self, user_email: str, social_data: Dict[str, Any]
     ) -> DomainUser:
-        pydantic_user = self._db.exec(
+        pydantic_user = self._session.exec(
             select(User).where(User.email == user_email)
         ).first()
         if not pydantic_user:
@@ -82,15 +86,15 @@ class UserRepository(DomainUserRepository):
 
         pydantic_user.social_id = social_data.get("id")
 
-        self._db.add(pydantic_user)
+        self._session.add(pydantic_user)
         try:
-            self._db.commit()
-            self._db.refresh(pydantic_user)
+            self._session.commit()
+            self._session.refresh(pydantic_user)
         except IntegrityError:
-            self._db.rollback()
+            self._session.rollback()
             return False
         except Exception as e:
-            self._db.rollback()
+            self._session.rollback()
             logger.error(
                 f"💥 Unhandled exception occurred while linking social account: {e}"
             )

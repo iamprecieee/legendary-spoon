@@ -10,7 +10,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from sqlmodel import SQLModel
 
-from config.database import get_db_url, get_settings
+from config.database import get_database_url, get_settings
 
 # --- IMPORT YOUR MODELS HERE ---
 # You should import all modules that define your SQLModel models here,
@@ -26,7 +26,7 @@ from config.database import get_db_url, get_settings
 config = context.config
 
 settings = get_settings()
-database_url = get_db_url(settings)
+database_url = get_database_url(settings)
 
 config.set_main_option("sqlalchemy.url", database_url)
 

@@ -6,33 +6,22 @@ from alembic.config import Config
 from .base import Settings, get_settings
 
 
-def get_db_url(settings: Settings) -> str:
-    """
-    Returns the database URL based on the current environment.
-    Only 'development' environment is supported (SQLite) currently.
-    """
-
+def get_database_url(settings: Settings) -> str:
     if settings.environment.lower() == "development":
         return f"sqlite:///{settings.base_dir}/db.sqlite3"
 
     raise ValueError(f'Unsupported environment: "{settings.envronment}"')
 
 
-def get_engine():
-    """Creates and returns a SQLModel engine using the current settings."""
-
+def get_database_engine():
     settings = get_settings()
-    db_url = get_db_url(settings)
-    return create_engine(db_url)
+    database_url = get_database_url(settings)
+
+    return create_engine(database_url)
 
 
-def get_db():
-    """
-    Dependency generator that yields a database session.
-    Closes the session after use.
-    """
-
-    engine = get_engine()
+def get_database_session():
+    engine = get_database_engine()
     with Session(bind=engine) as session:
         try:
             yield session
@@ -41,11 +30,7 @@ def get_db():
 
 
 def create_tables():
-    """
-    Creates all tables in the database based on SQLModel metadata.
-    """
-
-    engine = get_engine()
+    engine = get_database_engine()
     SQLModel.metadata.create_all(engine)
 
 

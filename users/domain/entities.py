@@ -18,4 +18,5 @@ class User:
     def ensure_valid_email(cls, value):
         if not re.fullmatch(r"^[a-zA-Z]+[\w\.-]+@[\w\.-]+\.[a-z\.]+", value):
             raise ValueError("Email is invalid.")
+
         return value

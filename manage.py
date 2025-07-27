@@ -1,12 +1,12 @@
 import click
 
 
-def import_alembic():
-    """Import Alembic command and Config."""
-    from alembic import command
-    from alembic.config import Config
+def import_from_alembic():
+    """Import Alembic command and config."""
+    from alembic import command, config
 
-    return command, Config
+    alembic_cfg = config.Config("alembic.ini")
+    return command, alembic_cfg
 
 
 @click.group()
@@ -21,9 +21,8 @@ def cli():
 def makemigrations(message):
     """Create a new Alembic migration with the given message."""
 
-    command, Config = import_alembic()
+    command, alembic_cfg = import_from_alembic()
 
-    alembic_cfg = Config("alembic.ini")
     command.revision(alembic_cfg, autogenerate=True, message=message)
     click.echo(f"Migration created: {message}")
 
@@ -32,9 +31,8 @@ def makemigrations(message):
 def migrate():
     """Apply all pending Alembic migrations."""
 
-    command, Config = import_alembic()
+    command, alembic_cfg = import_from_alembic()
 
-    alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
     click.echo("Migrations completed")
 
@@ -64,20 +62,6 @@ def clean():
                 os.remove(os.path.join(root, file_name))
 
     click.echo("Cleaned Python cache and Ruff cache directories.")
-
-
-@cli.command()
-def format():
-    """Format the codebase using Isort and Ruff."""
-    import subprocess
-
-    try:
-        subprocess.run(["uv", "tool", "run", "isort", "."], check=True)
-        subprocess.run(["uv", "tool", "run", "ruff", "format", "."], check=True)
-        click.echo("Code formatted successfully.")
-    except subprocess.CalledProcessError as e:
-        click.echo(f"Formatting failed: {str(e)}", err=True)
-        return
 
 
 if __name__ == "__main__":

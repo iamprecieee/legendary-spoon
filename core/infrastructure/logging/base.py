@@ -8,14 +8,17 @@ from config.base import get_settings
 
 
 class InterceptHandler(logging.Handler):
+    """
+    - Map standard logging level to Loguru level
+    - Find the frame where the logging call was made
+    """
+
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            # Map standard logging level to Loguru level
             level = logger.level(record.levelname).name
         except ValueError:
             level = record.levelno
 
-        # Find the frame where the logging call was made
         frame, depth = logging.currentframe(), 2
         while frame.f_code.co_filename == logging.__file__:
             frame = frame.f_back
@@ -41,12 +44,10 @@ def setup_logging() -> None:
     logging.root.handlers = [InterceptHandler()]
     logging.root.setLevel(settings.logging_level)
 
-    # Remove handlers from all existing loggers and enable propagation
     for file in logging.root.manager.loggerDict.keys():
         logging.getLogger(file).handlers = []
         logging.getLogger(file).propagate = True
 
-    # Configure Loguru handlers for console and file output
     logger.configure(
         handlers=[
             {
