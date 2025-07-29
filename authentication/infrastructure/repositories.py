@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import HTTPException, status
 from loguru import logger
@@ -16,8 +17,9 @@ from ..infrastructure.models import BlacklistedToken, RefreshToken
 
 
 class RefreshTokenRepository(DomainRefreshTokenRepository):
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, sanitizer: Any) -> None:
         self._db = db
+        self.sanitizer = sanitizer
 
     def create(self, refresh_token: DomainRefreshToken) -> DomainRefreshToken:
         refresh_token = self._to_pydantic_model(refresh_token)
@@ -32,9 +34,17 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
             raise e
         except Exception as e:
             self._db.rollback()
-            logger.error(
-                f"💥 Unhandled exception occurred while creating refresh_token: {e}"
-            )
+            if hasattr(e, "statement") and hasattr(e, "params"):
+                safe_sql, safe_params = self.sanitizer.sanitize_sql_for_logging(
+                    e.statement, e.params
+                )
+                logger.error(
+                    f"📝 Unhandled exception occurred while creating refresh_token: {type(e).__name__, safe_sql, safe_params}"
+                )
+            else:
+                logger.error(
+                    f"📝 Unhandled exception occurred while creating refresh_token: {self.sanitizer.sanitize_exception_for_logging((e))}"
+                )
 
         return self._to_domain_model(refresh_token)
 
@@ -82,8 +92,9 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
 
 
 class BlacklistTokenRepository(DomainBlacklistTokenRepository):
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, sanitizer: Any) -> None:
         self._db = db
+        self.sanitizer = sanitizer
 
     def create(self, token: BlacklistToken) -> None:
         pydantic_token = self._to_pydantic_model(token)
@@ -97,9 +108,17 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
             raise e
         except Exception as e:
             self._db.rollback()
-            logger.error(
-                f"💥 Unhandled exception occurred while blacklisting token: {e}"
-            )
+            if hasattr(e, "statement") and hasattr(e, "params"):
+                safe_sql, safe_params = self.sanitizer.sanitize_sql_for_logging(
+                    e.statement, e.params
+                )
+                logger.error(
+                    f"📝 Unhandled exception occurred while blacklisting token: {type(e).__name__, safe_sql, safe_params}"
+                )
+            else:
+                logger.error(
+                    f"📝 Unhandled exception occurred while blacklisting token: {self.sanitizer.sanitize_exception_for_logging((e))}"
+                )
 
     def is_token_blacklisted(self, token: str, raise_error: bool = False) -> bool:
         blacklisted = self._db.exec(

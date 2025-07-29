@@ -11,8 +11,9 @@ from ..infrastructure.models import User
 
 
 class UserRepository(DomainUserRepository):
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, sanitizer: Any) -> None:
         self._session = session
+        self.sanitizer = sanitizer
 
     def create(self, user: DomainUser) -> DomainUser:
         user = self._to_pydantic_model(user)
@@ -33,7 +34,17 @@ class UserRepository(DomainUserRepository):
             raise e
         except Exception as e:
             self._session.rollback()
-            logger.error(f"💥 Unhandled exception occurred while creating user: {e}")
+            if hasattr(e, "statement") and hasattr(e, "params"):
+                safe_sql, safe_params = self.sanitizer.sanitize_sql_for_logging(
+                    e.statement, e.params
+                )
+                logger.error(
+                    f"📝 Unhandled exception occurred while creating user: {type(e).__name__, safe_sql, safe_params}"
+                )
+            else:
+                logger.error(
+                    f"📝 Unhandled exception occurred while creating user: {self.sanitizer.sanitize_exception_for_logging((e))}"
+                )
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -95,9 +106,17 @@ class UserRepository(DomainUserRepository):
             return False
         except Exception as e:
             self._session.rollback()
-            logger.error(
-                f"💥 Unhandled exception occurred while linking social account: {e}"
-            )
+            if hasattr(e, "statement") and hasattr(e, "params"):
+                safe_sql, safe_params = self.sanitizer.sanitize_sql_for_logging(
+                    e.statement, e.params
+                )
+                logger.error(
+                    f"⛓️‍💥 Unhandled exception occurred while linking social account: {type(e).__name__, safe_sql, safe_params}"
+                )
+            else:
+                logger.error(
+                    f"⛓️‍💥 Unhandled exception occurred while linking social account: {self.sanitizer.sanitize_exception_for_logging((e))}"
+                )
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

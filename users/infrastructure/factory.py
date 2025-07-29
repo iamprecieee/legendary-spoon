@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import Depends, HTTPException, status
 from loguru import logger
 from sqlmodel import Session
@@ -13,6 +15,7 @@ from authentication.infrastructure.factory import (
 from authentication.infrastructure.repositories import BlacklistTokenRepository
 from authentication.infrastructure.services import JWTTokenService
 from config.database import get_database_session
+from core.infrastructure.factory import get_data_sanitizer
 
 from ..domain.entities import User as DomainUser
 from .repositories import UserRepository
@@ -22,8 +25,9 @@ oauth2_scheme = OAuth2PasswordBearerWithEmail(tokenUrl="/auth/token")
 
 async def get_user_repository(
     session: Session = Depends(get_database_session),
+    sanitizer: Any = Depends(get_data_sanitizer),
 ) -> UserRepository:
-    return UserRepository(session)
+    return UserRepository(session, sanitizer)
 
 
 async def get_current_user(

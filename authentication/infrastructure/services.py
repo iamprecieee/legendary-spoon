@@ -1,3 +1,4 @@
+import json
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -57,8 +58,9 @@ class PasswordService(PasswordServiceInterface):
 
 
 class JWTTokenService(JWTTokenServiceInterface):
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, sanitizer: Any):
         self._settings = settings
+        self.sanitizer = sanitizer
 
     def create_access_token(self, user: DomainUser) -> str:
         data_to_encode = {
@@ -131,7 +133,9 @@ class JWTTokenService(JWTTokenServiceInterface):
             return DomainUser(**payload_data)
 
         except InvalidTokenError as e:
-            logger.error(f"💥 Invalid access token: {e}")
+            logger.error(
+                f"❌ Invalid access token: {self.sanitizer.sanitize_exception_for_logging(e)}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication token",
@@ -151,7 +155,9 @@ class JWTTokenService(JWTTokenServiceInterface):
             return payload
 
         except InvalidTokenError as e:
-            logger.error(f"💥 Invalid refresh token: {e}")
+            logger.error(
+                f"💥 Invalid refresh token: {self.sanitizer.sanitize_exception_for_logging(e)}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid refresh token",
@@ -159,8 +165,9 @@ class JWTTokenService(JWTTokenServiceInterface):
 
 
 class GoogleOAuthService(OAuthServiceInterface):
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, sanitizer: Any) -> None:
         self._settings = settings
+        self.sanitizer = sanitizer
 
     def get_authorization_url(self, state: str) -> str:
         return (
@@ -191,9 +198,11 @@ class GoogleOAuthService(OAuthServiceInterface):
                 return response.json()
 
             except httpx.HTTPStatusError as e:
-                logger.error(f"💥 Error exchanging auth code: {e}")
                 logger.error(
-                    f"Response content: {e.response.text if hasattr(e, 'response') else 'No response content'}"
+                    f"⛓️‍💥 Error exchanging auth code: {self.sanitizer.sanitize_exception_for_logging(e)}"
+                )
+                logger.error(
+                    f"Response content: {self.sanitizer.sanitize_exception_for_logging(json.loads(e.response.text)) if hasattr(e, 'response') else 'No response content'}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -211,9 +220,11 @@ class GoogleOAuthService(OAuthServiceInterface):
                 return response.json()
 
             except httpx.HTTPStatusError as e:
-                logger.error(f"💥 Error fetching user info: {e}")
                 logger.error(
-                    f"Response content: {e.response.text if hasattr(e, 'response') else 'No response content'}"
+                    f"📄 Error fetching user info: {self.sanitizer.sanitize_exception_for_logging(e)}"
+                )
+                logger.error(
+                    f"Response content: {self.sanitizer.sanitize_exception_for_logging(json.loads(e.response.text)) if hasattr(e, 'response') else 'No response content'}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,

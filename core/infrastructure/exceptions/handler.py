@@ -9,6 +9,8 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from ..factory import get_data_sanitizer
+
 
 def normalize_error_detail(detail: Any) -> str | List[str] | Dict[str, Any]:
     """Normalize the error detail to a string, list, or dict for consistent API responses."""
@@ -36,6 +38,9 @@ def normalize_error_detail(detail: Any) -> str | List[str] | Dict[str, Any]:
 
 
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    exc_type = type(exc).__name__
+    sanitizer = await get_data_sanitizer()
+
     custom_response_data = {
         "success": False,
         "message": "An error occurred",
@@ -69,6 +74,11 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
                 "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
             }
         )
+
+        logger.error(
+            f"📝 SQLAlchemyError -> {exc_type}: {sanitizer.sanitize_sql_for_logging(exc.statement, exc.params)}"
+        )
+
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=custom_response_data,
@@ -156,17 +166,8 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     else:
         location = "No traceback available"
 
-    exc_type = type(exc).__name__
-    exc_msg = str(exc)
-
-    logger.error(
-        f"Unhandled exception -> {exc_type}: {exc_msg}\nLocation: {location}",
-        exc_info=exc,
-        extra={
-            "request_method": request.method,
-            "request_url": str(request.url),
-            "exception_type": exc_type,
-        },
+    logger.critical(
+        f"💥 Unhandled exception -> {exc_type}: {sanitizer.sanitize_exception_for_logging(exc)}\nLocation: {location}"
     )
 
     custom_response_data.update(

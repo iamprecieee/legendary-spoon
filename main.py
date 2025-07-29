@@ -2,7 +2,7 @@ import uvicorn
 from loguru import logger
 
 from config.base import get_settings
-from core.infrastructure.logging import setup_logging
+from core.infrastructure.logging import RequestTrackingMiddleware, setup_logging
 
 
 def create_app():
@@ -43,6 +43,14 @@ def create_app():
 
     app = FastAPI(lifespan=custom_lifespan)
 
+    settings = get_settings()
+
+    app.add_middleware(
+        RequestTrackingMiddleware,
+        include_request_body=settings.debug,
+        include_response_body=settings.debug,
+    )
+
     # Register global exception handlers for various error types
     app.add_exception_handler(ValidationError, global_exception_handler)
     app.add_exception_handler(RequestValidationError, global_exception_handler)
@@ -77,10 +85,10 @@ if __name__ == "__main__":
     logger.info("🔧 Configuring Uvicorn server with custom settings 🔧")
     uvicorn.run(
         "main:create_app",
-        factory=True,
-        reload=True,
         port=8001,
+        reload=True,
+        factory=True,
+        log_config=None,
         ssl_keyfile=settings.ssl_keyfile_path,
         ssl_certfile=settings.ssl_certfile_path,
-        log_config=None,
     )

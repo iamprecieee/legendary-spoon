@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     access_token_expiry: int  # minutes
     algorithm: str
+    debug: bool
     expires_delta: int  # minutes
     logging_level: str
     refresh_token_expiry: int  # days
