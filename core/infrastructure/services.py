@@ -1,6 +1,6 @@
 import re
-
 from typing import Any, Dict, List, Pattern
+from urllib.parse import urlparse, urlunparse
 
 
 class DataSanitizer:
@@ -19,9 +19,22 @@ class DataSanitizer:
             re.compile(r"auth", re.IGNORECASE),
             re.compile(r"credential", re.IGNORECASE),
             re.compile(r"api.key", re.IGNORECASE),
+            re.compile(r"code", re.IGNORECASE),
+            re.compile(r"state", re.IGNORECASE),
+            re.compile(r"session", re.IGNORECASE),
+            re.compile(r"csrf", re.IGNORECASE),
+            re.compile(r"social_id", re.IGNORECASE),
         ]
 
         self.email_pattern = re.compile(r"^[a-zA-Z]+[\w\.-]+@[\w\.-]+\.[a-z\.]+")
+
+        self.url_with_params_pattern = re.compile(
+            r"(?:https?://[^\s]+\?[^\s]+|[^\s]*\?[^\s&=]+=[^\s&=]+(?:&[^\s&=]+=[^\s&=]+)*)"
+        )
+
+        self.query_params_pattern = re.compile(
+            r"(?:^|\s)([a-zA-Z_][a-zA-Z0-9_]*=[^&\s]+(?:&[a-zA-Z_][a-zA-Z0-9_]*=[^&\s]+)*)(?:\s|$)"
+        )
 
     def sanitize_for_logging(self, data: Any) -> Any:
         return self._sanitize_value(data)
@@ -52,6 +65,47 @@ class DataSanitizer:
             return f"{masked_local}@{domain}"
         return "***@***.***"
 
+    def _sanitize_query_params(self, query_string: str) -> str:
+        try:
+            params = {}
+            for param_pair in query_string.split("&"):
+                if "=" in param_pair:
+                    key, value = param_pair.split("=", 1)
+                    params[key] = value
+                else:
+                    params[param_pair] = ""
+
+            sanitized_params = {}
+            for key, value in params.items():
+                if self._is_sensitive_field(key):
+                    sanitized_params[key] = "***MASKED***"
+                else:
+                    sanitized_params[key] = value
+
+            return "&".join([f"{k}={v}" for k, v in sanitized_params.items()])
+        except Exception:
+            return "***SANITIZED_PARAMS***"
+
+    def _sanitize_url_with_params(self, url: str) -> str:
+        try:
+            parsed = urlparse(url)
+            if parsed.query:
+                sanitized_query = self._sanitize_query_params(parsed.query)
+                # Reconstruct URL with sanitized query
+                return urlunparse(
+                    (
+                        parsed.scheme,
+                        parsed.netloc,
+                        parsed.path,
+                        parsed.params,
+                        sanitized_query,
+                        parsed.fragment,
+                    )
+                )
+            return url
+        except Exception:
+            return "***SANITIZED_URL***"
+
     def _sanitize_string(self, text: str, max_length: int = 1000) -> str:
         if not isinstance(text, str):
             text = str(text)
@@ -61,6 +115,17 @@ class DataSanitizer:
             text = text[:max_length] + "..."
 
         text = self.email_pattern.sub(lambda m: self._mask_email(m.group()), text)
+        text = self.url_with_params_pattern.sub(
+            lambda m: self._sanitize_url_with_params(m.group()), text
+        )
+
+        def sanitize_query_match(match):
+            query_string = match.group(1)
+            return match.group(0).replace(
+                query_string, self._sanitize_query_params(query_string)
+            )
+
+        text = self.query_params_pattern.sub(sanitize_query_match, text)
 
         return text
 
@@ -102,15 +167,25 @@ class DataSanitizer:
         # Keep SQL query as-is (it shouldn't contain sensitive data)
         sanitized_sql = sql
 
+        has_sensitive_fields = any(
+            pattern.search(sql) for pattern in self.sensitive_patterns
+        )
+
         if isinstance(params, (list, tuple)):
             sanitized_params = []
             for param in params:
-                if isinstance(param, str) and (
-                    "$2b$" in param  # bcrypt hash
-                    or "$argon2" in param  # argon2 hash
-                    or len(param) > 50  # Likely a hash/token
-                ):
-                    sanitized_params.append("***HASHED_VALUE***")
+                should_mask = False
+
+                if isinstance(param, str):
+                    # Check for obvious hashes/tokens
+                    if "$2b$" in param or "$argon2" in param or len(param) > 50:
+                        should_mask = True
+                    # If SQL contains sensitive fields, mask string parameters
+                    elif has_sensitive_fields and len(str(param)) > 5:
+                        should_mask = True
+
+                if should_mask:
+                    sanitized_params.append("***MASKED***")
                 else:
                     sanitized_params.append(self._sanitize_value(param))
             return sanitized_sql, sanitized_params

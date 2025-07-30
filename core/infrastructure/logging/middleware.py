@@ -6,8 +6,8 @@ from fastapi import Request, Response
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .context import RequestContextLogger
 from ..factory import get_data_sanitizer
+from .context import RequestContextLogger
 
 
 class RequestTrackingMiddleware(BaseHTTPMiddleware):
@@ -72,8 +72,7 @@ class RequestTrackingMiddleware(BaseHTTPMiddleware):
             except Exception as e:
                 logger.error(
                     sanitizer.sanitize_exception_for_logging(
-                        f"💥 Request failed: {type(e).__name__}: {str(e)}",
-                        exc_info=True,
+                        f"💥 Request failed: {type(e).__name__}: {str(e)}"
                     )
                 )
                 raise

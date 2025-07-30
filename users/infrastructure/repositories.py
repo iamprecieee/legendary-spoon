@@ -39,11 +39,11 @@ class UserRepository(DomainUserRepository):
                     e.statement, e.params
                 )
                 logger.error(
-                    f"📝 Unhandled exception occurred while creating user: {type(e).__name__, safe_sql, safe_params}"
+                    f"📝 Unhandled exception occurred while creating user: {type(e).__name__} - SQL: {safe_sql}, Params: {safe_params}"
                 )
             else:
                 logger.error(
-                    f"📝 Unhandled exception occurred while creating user: {self.sanitizer.sanitize_exception_for_logging((e))}"
+                    f"📝 Unhandled exception occurred while creating user: {type(e).__name__}: {self.sanitizer.sanitize_exception_for_logging(str(e))}"
                 )
 
             raise HTTPException(
@@ -111,11 +111,11 @@ class UserRepository(DomainUserRepository):
                     e.statement, e.params
                 )
                 logger.error(
-                    f"⛓️‍💥 Unhandled exception occurred while linking social account: {type(e).__name__, safe_sql, safe_params}"
+                    f"⛓️‍💥 Unhandled exception occurred while linking social account: {type(e).__name__} - SQL: {safe_sql}, Params: {safe_params}"
                 )
             else:
                 logger.error(
-                    f"⛓️‍💥 Unhandled exception occurred while linking social account: {self.sanitizer.sanitize_exception_for_logging((e))}"
+                    f"⛓️‍💥 Unhandled exception occurred while linking social account: {self.sanitizer.sanitize_exception_for_logging(e)}"
                 )
 
             raise HTTPException(

@@ -43,7 +43,7 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
                 )
             else:
                 logger.error(
-                    f"📝 Unhandled exception occurred while creating refresh_token: {self.sanitizer.sanitize_exception_for_logging((e))}"
+                    f"📝 Unhandled exception occurred while creating refresh_token: {self.sanitizer.sanitize_exception_for_logging(e)}"
                 )
 
         return self._to_domain_model(refresh_token)
@@ -113,11 +113,11 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
                     e.statement, e.params
                 )
                 logger.error(
-                    f"📝 Unhandled exception occurred while blacklisting token: {type(e).__name__, safe_sql, safe_params}"
+                    f"📝 Unhandled exception occurred while blacklisting token: {type(e).__name__} - SQL: {safe_sql}, Params: {safe_params}"
                 )
             else:
                 logger.error(
-                    f"📝 Unhandled exception occurred while blacklisting token: {self.sanitizer.sanitize_exception_for_logging((e))}"
+                    f"📝 Unhandled exception occurred while blacklisting token: {type(e).__name__}: {self.sanitizer.sanitize_exception_for_logging(str(e))}"
                 )
 
     def is_token_blacklisted(self, token: str, raise_error: bool = False) -> bool:

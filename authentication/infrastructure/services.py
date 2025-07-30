@@ -156,7 +156,7 @@ class JWTTokenService(JWTTokenServiceInterface):
 
         except InvalidTokenError as e:
             logger.error(
-                f"💥 Invalid refresh token: {self.sanitizer.sanitize_exception_for_logging(e)}"
+                f"❌ Invalid refresh token: {self.sanitizer.sanitize_exception_for_logging(e)}"
             )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

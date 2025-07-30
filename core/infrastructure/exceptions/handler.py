@@ -75,9 +75,14 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             }
         )
 
-        logger.error(
-            f"📝 SQLAlchemyError -> {exc_type}: {sanitizer.sanitize_sql_for_logging(exc.statement, exc.params)}"
-        )
+        if hasattr(exc, "statement") and hasattr(exc, "params"):
+            logger.error(
+                f"📝 SQLAlchemyError -> {exc_type}: {sanitizer.sanitize_sql_for_logging(exc.statement, exc.params)}"
+            )
+        else:
+            logger.error(
+                f"📝 SQLAlchemyError -> {exc_type}: {sanitizer.sanitize_exception_for_logging(str(exc))}"
+            )
 
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
