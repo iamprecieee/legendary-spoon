@@ -84,20 +84,20 @@ class AuthenticateUserRule:
         self.user_repository = user_repository
         self.password_service = password_service
 
-    async def execute(self) -> DomainUser | None:
+    async def execute(self) -> DomainUser:
         """Executes the user authentication process.
 
         Retrieves the user by email and verifies the provided password
         against the stored hashed password.
 
         Returns:
-            The `DomainUser` entity if authentication is successful, otherwise None.
+            The `DomainUser` entity if authentication is successful.
         """
         existing_user = await self.user_repository.get_by_email(self.email)
-        if not await self.password_service.check_password(
+
+        await self.password_service.check_password(
             self.password, existing_user.password
-        ):
-            return None
+        )
 
         return existing_user
 
@@ -215,7 +215,7 @@ class RefreshTokenRule:
     def __init__(
         self,
         refresh_token: str,
-        user_repository: UserRepository,
+        user: DomainUser,
         token_service: JWTTokenServiceInterface,
         refresh_token_repository: RefreshTokenRepository,
     ) -> None:
@@ -223,12 +223,12 @@ class RefreshTokenRule:
 
         Args:
             refresh_token: The old refresh token string.
-            user_repository: An instance of `UserRepository` for fetching user details.
+            user: An instance of `DomainUser` containing user details.
             token_service: An instance of `JWTTokenServiceInterface` for token creation and decoding.
             refresh_token_repository: An instance of `RefreshTokenRepository` for managing refresh tokens.
         """
         self.refresh_token = refresh_token
-        self.user_repository = user_repository
+        self.user = user
         self.token_service = token_service
         self.refresh_token_repository = refresh_token_repository
 
@@ -244,23 +244,23 @@ class RefreshTokenRule:
         Raises:
             HTTPException: If the refresh token is invalid or expired, or user not found.
         """
-        payload = await self.token_service.decode_refresh_token(self.refresh_token)
+        await self.token_service.decode_refresh_token(self.refresh_token)
 
         # Ensure the refresh token exists and is valid
         await self.refresh_token_repository.get_by_token(self.refresh_token)
 
-        user = await self.user_repository.get_by_id(payload["user_id"])
-
-        new_access_token = await self.token_service.create_access_token(user)
-        new_refresh_token = await self.token_service.create_refresh_token(user)
+        new_access_token = await self.token_service.create_access_token(self.user)
+        new_refresh_token = await self.token_service.create_refresh_token(self.user)
 
         # Revoke the old refresh token
-        await self.refresh_token_repository.revoke_token(self.refresh_token)
+        await self.refresh_token_repository.revoke_token(
+            self.refresh_token, self.user.id
+        )
 
         # Store the new refresh token
         new_refresh_token_entity = RefreshToken(
             token=new_refresh_token,
-            user_id=user.id,
+            user_id=self.user.id,
         )
         await self.refresh_token_repository.create(new_refresh_token_entity)
 
@@ -268,7 +268,7 @@ class RefreshTokenRule:
             access_token=new_access_token, refresh_token=new_refresh_token
         )
 
-        return user, token_pair
+        return self.user, token_pair
 
 
 class LogoutRule:
@@ -279,6 +279,7 @@ class LogoutRule:
 
     def __init__(
         self,
+        user_id: int,
         access_token: str,
         refresh_token: str | None,
         token_service: JWTTokenServiceInterface,
@@ -288,12 +289,14 @@ class LogoutRule:
         """Initializes the LogoutRule.
 
         Args:
+            user_id: The id of the authenticated user.
             access_token: The access token to be blacklisted.
             refresh_token: The refresh token to be revoked (optional).
             token_service: An instance of `JWTTokenServiceInterface` for token decoding.
             blacklist_token_repository: An instance of `BlacklistTokenRepository` for blacklisting access tokens.
             refresh_token_repository: An instance of `RefreshTokenRepository` for revoking refresh tokens.
         """
+        self.user_id = user_id
         self.access_token = access_token
         self.refresh_token = refresh_token
         self.token_service = token_service
@@ -313,7 +316,9 @@ class LogoutRule:
         )
 
         if self.refresh_token:
-            await self.refresh_token_repository.revoke_token(self.refresh_token)
+            await self.refresh_token_repository.revoke_token(
+                self.refresh_token, self.user_id
+            )
 
 
 class OAuthLoginRule:

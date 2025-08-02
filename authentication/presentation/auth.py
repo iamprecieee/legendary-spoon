@@ -108,6 +108,7 @@ async def refresh_token(
     user_repository=Depends(get_user_repository),
     token_service=Depends(get_jwt_token_service),
     refresh_token_repository=Depends(get_refresh_token_repository),
+    current_user=Depends(get_current_user),
 ):
     """Refreshes an expired access token using a valid refresh token.
 
@@ -125,7 +126,7 @@ async def refresh_token(
     """
     refresh_rule = RefreshTokenRule(
         refresh_token=request.refresh_token,
-        user_repository=user_repository,
+        user=current_user,
         token_service=token_service,
         refresh_token_repository=refresh_token_repository,
     )
@@ -213,6 +214,7 @@ async def logout_user(
         A `SuccessResponse` indicating successful logout.
     """
     logout_rule = LogoutRule(
+        user_id=current_user.id,
         access_token=access_token,
         refresh_token=request.refresh_token,
         token_service=token_service,

@@ -22,13 +22,14 @@ def cache_key(*args, **kwargs) -> str:
     """
     key_parts = []
 
-    for arg in args:
-        if hasattr(arg, "__class__"):
+    for i, arg in enumerate(args):
+        if i == 0 and hasattr(arg, "__dict__") and hasattr(arg, "__class__"):
             continue
-        key_parts.append(str(arg))
+
+        key_parts.append(f"arg{i}:{str(arg)}")
 
     for key, value in sorted(kwargs.items()):
-        key_parts.append(f"{key}:{value}")
+        key_parts.append(f"{key}:{str(value)}")
 
     key_string = "|".join(key_parts)
     return hashlib.md5(key_string.encode()).hexdigest()

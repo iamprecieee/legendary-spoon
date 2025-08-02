@@ -141,7 +141,7 @@ class RefreshTokenRepository(ABC):
         pass
 
     @abstractmethod
-    async def revoke_token(self, token: str) -> None:
+    async def revoke_token(self, token: str, user_id: int) -> None:
         """Revokes a refresh token, making it unusable.
 
         Args:

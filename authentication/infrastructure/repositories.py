@@ -93,7 +93,7 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
         pydantic_refresh_token = pydantic_refresh_token[0]
         return self._to_domain_model(pydantic_refresh_token)
 
-    async def revoke_token(self, token: str) -> None:
+    async def revoke_token(self, token: str, user_id: int) -> None:
         """Revokes a refresh token by marking it as revoked in the database.
 
         Args:
@@ -102,23 +102,30 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
         refresh_token_data = await self._session.execute(
             select(RefreshToken).where(
                 RefreshToken.token == token,
+                RefreshToken.user_id == user_id,
                 not RefreshToken.is_revoked,
                 RefreshToken.expires_at > datetime.now(),
             )
         )
         pydantic_refresh_token = refresh_token_data.first()
 
-        if pydantic_refresh_token and not pydantic_refresh_token[0].is_revoked:
-            pydantic_refresh_token = pydantic_refresh_token[0]
-            pydantic_refresh_token.is_revoked = True
-            self._session.add(pydantic_refresh_token)
-            try:
-                await self._session.commit()
-                await self._session.refresh(pydantic_refresh_token)
-            except Exception as e:
-                await self._session.rollback()
+        if not pydantic_refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Refresh token not found or does not belong to user",
+            )
 
-                raise e
+        pydantic_refresh_token = pydantic_refresh_token[0]
+        pydantic_refresh_token.is_revoked = True
+        self._session.add(pydantic_refresh_token)
+
+        try:
+            await self._session.commit()
+            await self._session.refresh(pydantic_refresh_token)
+        except Exception as e:
+            await self._session.rollback()
+
+            raise e
 
     def _to_pydantic_model(
         self, domain_refresh_token: DomainRefreshToken
