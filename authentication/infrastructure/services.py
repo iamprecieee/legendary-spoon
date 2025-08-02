@@ -1,4 +1,3 @@
-import json
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -8,7 +7,6 @@ import httpx
 import jwt
 from fastapi import HTTPException, status
 from jwt.exceptions import InvalidTokenError
-from loguru import logger
 from passlib.context import CryptContext
 
 from config.base import Settings
@@ -22,23 +20,69 @@ from ..application.ports import (
 
 
 class PasswordService(PasswordServiceInterface):
-    def __init__(self, settings: Settings):
+    """Concrete implementation of `PasswordServiceInterface` for password hashing and checking.
+
+    Utilizes `passlib`'s `CryptContext` with the bcrypt scheme for secure password management.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        """Initializes the PasswordService.
+
+        Args:
+            settings: Application settings, providing `secret_key` and `min_password_length`.
+        """
         self._settings = settings
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-    def hash_password(self, password: str) -> str:
+    async def hash_password(self, password: str) -> str:
+        """Hashes a raw password after enforcing strength requirements.
+
+        The password is salted with the application's secret key before hashing.
+
+        Args:
+            password: The plain-text password to hash.
+
+        Returns:
+            The securely hashed password string.
+
+        Raises:
+            ValueError: If the password does not meet the defined strength requirements.
+        """
         self._ensure_strong_password(password)
 
-        salted_password = (password + self._settings.secret_key).encode("utf-8")
-        return self.pwd_context.hash(salted_password)
+        return self.pwd_context.hash(password)
 
-    def check_password(self, raw_password: str, hashed_password: str) -> bool:
+    async def check_password(self, raw_password: str, hashed_password: str) -> bool:
+        """Checks if a raw password matches a hashed password.
+
+        The raw password is salted with the application's secret key before verification.
+
+        Args:
+            raw_password: The plain-text password to check.
+            hashed_password: The hashed password to compare against.
+
+        Returns:
+            True if the passwords match, False otherwise.
+
+        Raises:
+            ValueError: If the raw password does not meet the defined strength requirements.
+        """
         self._ensure_strong_password(raw_password)
 
-        salted_password = (raw_password + self._settings.secret_key).encode("utf-8")
-        return self.pwd_context.verify(salted_password, hashed_password)
+        return self.pwd_context.verify(raw_password, hashed_password)
 
     def _ensure_strong_password(self, password: str) -> None:
+        """Enforces password strength requirements.
+
+        Checks for presence of lowercase, uppercase, digit, and special characters,
+        as well as minimum length.
+
+        Args:
+            password: The password string to validate.
+
+        Raises:
+            ValueError: If the password does not meet any of the strength criteria.
+        """
         if not re.search(r"[a-z]", password):
             raise ValueError("Password must contain at least one lowercase letter.")
 
@@ -58,11 +102,32 @@ class PasswordService(PasswordServiceInterface):
 
 
 class JWTTokenService(JWTTokenServiceInterface):
-    def __init__(self, settings: Settings, sanitizer: Any):
-        self._settings = settings
-        self.sanitizer = sanitizer
+    """Concrete implementation of `JWTTokenServiceInterface` for JWT creation and decoding.
 
-    def create_access_token(self, user: DomainUser) -> str:
+    Handles the encoding and decoding of access and refresh tokens using PyJWT.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        """Initializes the JWTTokenService.
+
+        Args:
+            settings: Application settings, providing `secret_key`, `algorithm`,
+                      `access_token_expiry`, and `refresh_token_expiry`.
+        """
+        self._settings = settings
+
+    async def create_access_token(self, user: DomainUser) -> str:
+        """Creates a signed JWT access token for the given user.
+
+        The token includes user ID, email, and active status, and is set to expire
+        according to `access_token_expiry` in settings.
+
+        Args:
+            user: The `DomainUser` entity for whom to create the token.
+
+        Returns:
+            The encoded JWT access token string.
+        """
         data_to_encode = {
             "user_id": user.id,
             "email": user.email,
@@ -82,7 +147,18 @@ class JWTTokenService(JWTTokenServiceInterface):
             algorithm=self._settings.algorithm,
         )
 
-    def create_refresh_token(self, user: DomainUser) -> str:
+    async def create_refresh_token(self, user: DomainUser) -> str:
+        """Creates a signed JWT refresh token for the given user.
+
+        The token includes user ID, a unique JTI, and is set to expire
+        according to `refresh_token_expiry` in settings.
+
+        Args:
+            user: The `DomainUser` entity for whom to create the token.
+
+        Returns:
+            The encoded JWT refresh token string.
+        """
         data_to_encode = {
             "user_id": user.id,
             "type": "refresh",
@@ -101,7 +177,20 @@ class JWTTokenService(JWTTokenServiceInterface):
             algorithm=self._settings.algorithm,
         )
 
-    def decode_jwt_token(self, token: str) -> Dict[str, Any]:
+    async def decode_jwt_token(self, token: str) -> Dict[str, Any]:
+        """Decodes a raw JWT token using the configured secret key and algorithm.
+
+        This method performs basic decoding but does not validate token type or expiration.
+
+        Args:
+            token: The JWT token string to decode.
+
+        Returns:
+            A dictionary containing the decoded token payload.
+
+        Raises:
+            HTTPException: If the token is invalid or cannot be decoded.
+        """
         try:
             return jwt.decode(
                 token, self._settings.secret_key, algorithms=[self._settings.algorithm]
@@ -109,12 +198,25 @@ class JWTTokenService(JWTTokenServiceInterface):
         except InvalidTokenError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
+                detail="Failed to decode JWT token",
             )
 
-    def decode_access_token(self, token: str) -> DomainUser | None:
+    async def decode_access_token(self, token: str) -> DomainUser | None:
+        """Decodes and validates an access token, returning the associated user.
+
+        Checks token type, expiration, and extracts user information.
+
+        Args:
+            token: The access token string to decode and validate.
+
+        Returns:
+            The `DomainUser` entity if the token is valid and active.
+
+        Raises:
+            HTTPException: If the token is invalid, expired, or of the wrong type.
+        """
         try:
-            payload = self.decode_jwt_token(token)
+            payload = await self.decode_jwt_token(token)
             if payload.get("type") != "access":
                 raise InvalidTokenError
             # Check token expiration
@@ -133,17 +235,30 @@ class JWTTokenService(JWTTokenServiceInterface):
             return DomainUser(**payload_data)
 
         except InvalidTokenError as e:
-            logger.error(
-                f"❌ Invalid access token: {self.sanitizer.sanitize_exception_for_logging(e)}"
-            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
+                detail="Failed to decode access token",
             ) from e
 
-    def decode_refresh_token(self, token: str) -> Dict[str, Any] | None:
+        except Exception as e:
+            raise e
+
+    async def decode_refresh_token(self, token: str) -> Dict[str, Any] | None:
+        """Decodes and validates a refresh token.
+
+        Checks token type and expiration.
+
+        Args:
+            token: The refresh token string to decode and validate.
+
+        Returns:
+            A dictionary containing the decoded token payload if valid.
+
+        Raises:
+            HTTPException: If the token is invalid, expired, or of the wrong type.
+        """
         try:
-            payload = self.decode_jwt_token(token)
+            payload = await self.decode_jwt_token(token)
             if payload.get("type") != "refresh":
                 raise InvalidTokenError
             # Check token expiration
@@ -155,21 +270,37 @@ class JWTTokenService(JWTTokenServiceInterface):
             return payload
 
         except InvalidTokenError as e:
-            logger.error(
-                f"❌ Invalid refresh token: {self.sanitizer.sanitize_exception_for_logging(e)}"
-            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token",
+                detail="Failed to decode refresh token",
             ) from e
 
 
 class GoogleOAuthService(OAuthServiceInterface):
-    def __init__(self, settings: Settings, sanitizer: Any) -> None:
+    """Concrete implementation of `OAuthServiceInterface` for Google OAuth 2.0.
+
+    Handles generating authorization URLs, exchanging authorization codes for tokens,
+    and fetching user information from Google's API.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        """Initializes the GoogleOAuthService.
+
+        Args:
+            settings: Application settings, providing Google OAuth client ID, secret,
+                      redirect URI, token URL, and user info URL.
+        """
         self._settings = settings
-        self.sanitizer = sanitizer
 
     def get_authorization_url(self, state: str) -> str:
+        """Generates the Google OAuth authorization URL.
+
+        Args:
+            state: A unique state string to protect against CSRF attacks.
+
+        Returns:
+            The full authorization URL for Google OAuth.
+        """
         return (
             f"https://accounts.google.com/o/oauth2/auth?response_type=code"
             f"&client_id={self._settings.google_client_id}"
@@ -181,10 +312,21 @@ class GoogleOAuthService(OAuthServiceInterface):
         )
 
     async def exchange_auth_code(self, auth_code: str) -> Dict[str, Any]:
+        """Exchanges an authorization code for Google access and ID tokens.
+
+        Args:
+            auth_code: The authorization code received from Google's OAuth callback.
+
+        Returns:
+            A dictionary containing the token response from Google.
+
+        Raises:
+            httpx.HTTPStatusError: If the HTTP request to Google's token endpoint fails.
+        """
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    self._get_google_token_url(),
+                    self._settings.google_token_url,
                     data={
                         "code": auth_code,
                         "client_id": self._settings.google_client_id,
@@ -198,41 +340,28 @@ class GoogleOAuthService(OAuthServiceInterface):
                 return response.json()
 
             except httpx.HTTPStatusError as e:
-                logger.error(
-                    f"⛓️‍💥 Error exchanging auth code: {self.sanitizer.sanitize_exception_for_logging(e)}"
-                )
-                logger.error(
-                    f"Response content: {self.sanitizer.sanitize_exception_for_logging(json.loads(e.response.text)) if hasattr(e, 'response') else 'No response content'}"
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to exchange authorization code",
-                ) from e
+                raise e
 
     async def fetch_user_info(self, access_token: str) -> Dict[str, Any]:
+        """Fetches user profile information from Google using an access token.
+
+        Args:
+            access_token: The access token obtained from Google.
+
+        Returns:
+            A dictionary containing the user's profile information.
+
+        Raises:
+            httpx.HTTPStatusError: If the HTTP request to Google's user info endpoint fails.
+        """
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(
-                    self._get_google_user_info_url(),
+                    self._settings.google_user_info_url,
                     headers={"Authorization": f"Bearer {access_token}"},
                 )
                 response.raise_for_status()
                 return response.json()
 
             except httpx.HTTPStatusError as e:
-                logger.error(
-                    f"📄 Error fetching user info: {self.sanitizer.sanitize_exception_for_logging(e)}"
-                )
-                logger.error(
-                    f"Response content: {self.sanitizer.sanitize_exception_for_logging(json.loads(e.response.text)) if hasattr(e, 'response') else 'No response content'}"
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to fetch user information",
-                ) from e
-
-    def _get_google_token_url(self) -> str:
-        return "https://oauth2.googleapis.com/token"
-
-    def _get_google_user_info_url(self) -> str:
-        return "https://www.googleapis.com/oauth2/v3/userinfo"
+                raise e

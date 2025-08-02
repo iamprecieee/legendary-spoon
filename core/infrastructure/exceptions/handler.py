@@ -1,3 +1,4 @@
+import json
 import traceback
 from typing import Any, Dict, List
 
@@ -13,8 +14,18 @@ from ..factory import get_data_sanitizer
 
 
 def normalize_error_detail(detail: Any) -> str | List[str] | Dict[str, Any]:
-    """Normalize the error detail to a string, list, or dict for consistent API responses."""
+    """Normalizes the error detail to a string, list of strings, or dictionary for consistent API responses.
 
+    This function processes various formats of error details (e.g., from Pydantic validation errors)
+    and converts them into a standardized format suitable for API responses.
+
+    Args:
+        detail: The raw error detail, which can be a string, dictionary, or list.
+
+    Returns:
+        A normalized representation of the error detail: a string, a list of strings,
+        or a dictionary, depending on the input type and content.
+    """
     if isinstance(detail, str):
         return detail
 
@@ -38,8 +49,30 @@ def normalize_error_detail(detail: Any) -> str | List[str] | Dict[str, Any]:
 
 
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Global exception handler for the FastAPI application.
+
+    This handler catches various types of exceptions (e.g., ValueError, SQLAlchemyError,
+    HTTPException, ValidationError) and returns a consistent JSON response format.
+    It also sanitizes sensitive information before logging.
+
+    Args:
+        request: The incoming FastAPI request object.
+        exc: The exception that was caught.
+
+    Returns:
+        A `JSONResponse` object with a standardized error format and appropriate HTTP status code.
+    """
     exc_type = type(exc).__name__
     sanitizer = await get_data_sanitizer()
+
+    if hasattr(exc, "statement") and hasattr(exc, "params"):
+        exc_msg = sanitizer.sanitize_sql_for_logging(exc.statement, exc.params)
+    elif hasattr(exc, "response"):
+        exc_msg = sanitizer.sanitize_exception_for_logging(
+            json.loads(exc.response.text)
+        )
+    else:
+        exc_msg = sanitizer.sanitize_exception_for_logging(str(exc))
 
     custom_response_data = {
         "success": False,
@@ -50,14 +83,23 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         "method": request.method,
     }
 
-    # Handle database integrity errors (e.g., unique constraint violations)
+    if isinstance(exc, ValueError):
+        custom_response_data.update(
+            {
+                "message": "Invalid field items",
+                "errors": {"detail": str(exc)},
+                "status_code": status.HTTP_400_BAD_REQUEST,
+            }
+        )
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST, content=custom_response_data
+        )
+
     if isinstance(exc, IntegrityError):
         custom_response_data.update(
             {
                 "message": "Database constraint violation",
-                "errors": {
-                    "detail": f"Database constraint violation occurred: {str(exc.orig)}"
-                },
+                "errors": {"detail": str(exc.orig)},
                 "status_code": status.HTTP_409_CONFLICT,
             }
         )
@@ -65,7 +107,6 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             status_code=status.HTTP_409_CONFLICT, content=custom_response_data
         )
 
-    # Handle generic SQLAlchemy errors
     if isinstance(exc, SQLAlchemyError):
         custom_response_data.update(
             {
@@ -75,28 +116,20 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             }
         )
 
-        if hasattr(exc, "statement") and hasattr(exc, "params"):
-            logger.error(
-                f"📝 SQLAlchemyError -> {exc_type}: {sanitizer.sanitize_sql_for_logging(exc.statement, exc.params)}"
-            )
-        else:
-            logger.error(
-                f"📝 SQLAlchemyError -> {exc_type}: {sanitizer.sanitize_exception_for_logging(str(exc))}"
-            )
+        logger.error(f"📝 SQLAlchemyError -> {exc_type}: {exc_msg}")
 
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=custom_response_data,
         )
 
-    # Handle [Pydantic/FastAPI request/FastAPI response] validation errors
     if isinstance(
         exc, (ValidationError, RequestValidationError, ResponseValidationError)
     ):
         errors = {}
         for error in exc.errors():
             field = ".".join(str(x) for x in error["loc"])
-            errors[field] = error["msg"]
+            errors["detail"] = f"{error['msg']} in {field}"
 
         custom_response_data.update(
             {
@@ -110,20 +143,6 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             content=custom_response_data,
         )
 
-    # Handle generic value errors
-    if isinstance(exc, ValueError):
-        custom_response_data.update(
-            {
-                "message": "Invalid value provided",
-                "errors": {"detail": str(exc)},
-                "status_code": status.HTTP_400_BAD_REQUEST,
-            }
-        )
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST, content=custom_response_data
-        )
-
-    # Handle FastAPI HTTPException (e.g., 404, 401, etc.)
     if isinstance(exc, HTTPException):
         custom_response_data.update(
             {
@@ -132,7 +151,6 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             }
         )
 
-        # Set a more specific message based on status code
         if exc.status_code == status.HTTP_404_NOT_FOUND:
             custom_response_data["message"] = "Resource not found"
         elif exc.status_code == status.HTTP_401_UNAUTHORIZED:
@@ -152,7 +170,6 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
         return JSONResponse(status_code=exc.status_code, content=custom_response_data)
 
-    # Handle Starlette HTTPException (should rarely occur separately)
     if isinstance(exc, StarletteHTTPException):
         custom_response_data.update(
             {
@@ -172,7 +189,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         location = "No traceback available"
 
     logger.critical(
-        f"💥 Unhandled exception -> {exc_type}: {sanitizer.sanitize_exception_for_logging(exc)}\nLocation: {location}"
+        f"☢️ Unhandled exception -> {exc_type}: {exc_msg}\nLocation: {location}"
     )
 
     custom_response_data.update(

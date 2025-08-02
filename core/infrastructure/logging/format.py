@@ -2,7 +2,21 @@ from typing import Any, Dict
 
 
 class CustomLogFormat:
+    """Manages custom log formatting for console and file outputs.
+
+    This class takes a Loguru record dictionary and formats it
+    into human-readable strings for different logging sinks, including
+    colorization for console output and contextual data for file output.
+    """
+
     def __init__(self, record: Dict[str, Any]) -> None:
+        """Initializes the CustomLogFormat with a Loguru record.
+
+        Extracts and pre-processes various parts of the log record for formatting.
+
+        Args:
+            record: A dictionary representing the Loguru log record.
+        """
         self.record = record
         self.time_str = self.record["time"].strftime("%Y-%m-%d %H:%M:%S.%f")[:-4]
         self.level = self.record["level"].name
@@ -23,6 +37,13 @@ class CustomLogFormat:
         self.location = f"{self.record['file']}:{self.function}:{self.record['line']}"
 
     def log_console_format(self) -> str:
+        """Formats the log record for console output.
+
+        Includes timestamp, colored level, file location, and message.
+
+        Returns:
+            A formatted string suitable for console logging.
+        """
         log_format = (
             f"<dim><bold>{self.time_str}</bold></dim> | "
             f"<level>{self.level_color}{self.level:8}</{self.level_color.strip('<>')}></level> | "
@@ -34,6 +55,13 @@ class CustomLogFormat:
         return log_format
 
     def log_file_format(self) -> str:
+        """Formats the log record for file output.
+
+        Includes timestamp, level, file location, message, and extra context data (e.g., request ID).
+
+        Returns:
+            A formatted string suitable for file logging.
+        """
         context_parts = []
         for key, value in self.record["extra"].items():
             if key not in ["request_id"]:

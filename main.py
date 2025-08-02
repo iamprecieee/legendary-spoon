@@ -6,6 +6,14 @@ from core.infrastructure.logging import RequestTrackingMiddleware, setup_logging
 
 
 def create_app():
+    """Creates and configures the FastAPI application instance.
+
+    This function sets up the application lifespan events (startup/shutdown),
+    adds middleware, registers global exception handlers, and includes API routers.
+
+    Returns:
+        A configured FastAPI application instance.
+    """
     from contextlib import asynccontextmanager
 
     from fastapi import FastAPI, HTTPException
@@ -19,21 +27,28 @@ def create_app():
 
     @asynccontextmanager
     async def custom_lifespan(app):
-        """
-        Application lifespan context manager.
+        """Asynchronous context manager for managing application startup and shutdown events.
 
-        Sets up logging, runs migrations, creates tables, and logs startup/shutdown events.
-        """
+        During startup, it sets up logging, creates non-existent database tables, and runs migrations.
+        During shutdown, it logs an application shutdown message.
 
+        Args:
+            app: The FastAPI application instance.
+
+        Yields:
+            None, after startup tasks are complete and before shutdown tasks begin.
+
+        Raises:
+            Exception: If database migration or table creation fails during startup.
+        """
         setup_logging()
-
         try:
             logger.info("🔧 Creating non-existent database tables 🔧")
-            create_tables()
-            logger.info("🔧 Running database migrations and creating tables 🔧")
-            run_migrations()
-        except ImportError as e:
-            logger.error(f"💥 Migration or table creation failed: {e}")
+            await create_tables()
+            logger.info("🔧 Running database migrations 🔧")
+            await run_migrations()
+        except Exception as e:
+            logger.error(f"📝 Migration or table creation failed: {e}")
             raise e
 
         logger.info("✅ Application startup completed ✅")
@@ -43,41 +58,38 @@ def create_app():
 
     app = FastAPI(lifespan=custom_lifespan)
 
-    settings = get_settings()
+    app.add_middleware(RequestTrackingMiddleware)
 
-    app.add_middleware(
-        RequestTrackingMiddleware,
-        include_request_body=settings.debug,
-        include_response_body=settings.debug,
-    )
-
-    # Register global exception handlers for various error types
+    app.add_exception_handler(ValueError, global_exception_handler)
+    app.add_exception_handler(IntegrityError, global_exception_handler)
+    app.add_exception_handler(SQLAlchemyError, global_exception_handler)
+    app.add_exception_handler(Exception, global_exception_handler)
     app.add_exception_handler(ValidationError, global_exception_handler)
     app.add_exception_handler(RequestValidationError, global_exception_handler)
     app.add_exception_handler(ResponseValidationError, global_exception_handler)
-    app.add_exception_handler(IntegrityError, global_exception_handler)
-    app.add_exception_handler(SQLAlchemyError, global_exception_handler)
     app.add_exception_handler(HTTPException, global_exception_handler)
     app.add_exception_handler(StarletteHTTPException, global_exception_handler)
-    app.add_exception_handler(ValueError, global_exception_handler)
-    app.add_exception_handler(Exception, global_exception_handler)
 
     try:
         from authentication.presentation import router as auth_router
         from users.presentation import router as user_router
 
-        # Include authentication and user routers
         app.include_router(auth_router)
         app.include_router(user_router)
     except Exception as e:
-        logger.error(f"💥 Runtime error: {e}")
+        logger.error(f"🔴 Runtime error: {e}")
 
     return app
 
 
 if __name__ == "__main__":
-    settings = get_settings()
+    """Entry point for running the FastAPI application using Uvicorn.
+
+    Configures logging and starts the Uvicorn server with specified host, port,
+    reload settings, and SSL configurations.
+    """
     setup_logging()
+    settings = get_settings()
     logger.info(
         f"🚀✨ Starting Legendary Spoon in '{settings.environment.upper()}' mode! ✨🚀"
     )

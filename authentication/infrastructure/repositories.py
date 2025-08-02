@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import HTTPException, status
-from loguru import logger
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
+
+from core.infrastructure.cache.decorators import cache
 
 from ..application.ports import (
     BlacklistTokenRepository as DomainBlacklistTokenRepository,
@@ -17,68 +18,121 @@ from ..infrastructure.models import BlacklistedToken, RefreshToken
 
 
 class RefreshTokenRepository(DomainRefreshTokenRepository):
-    def __init__(self, db: Session, sanitizer: Any) -> None:
-        self._db = db
-        self.sanitizer = sanitizer
+    """Concrete implementation of `RefreshTokenRepository` for managing refresh tokens in the database.
 
-    def create(self, refresh_token: DomainRefreshToken) -> DomainRefreshToken:
+    This repository handles the creation, retrieval, and revocation of refresh tokens,
+    mapping between domain entities and SQLModel ORM objects.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Initializes the RefreshTokenRepository.
+
+        Args:
+            session: The asynchronous SQLAlchemy session for database operations.
+        """
+        self._session = session
+
+    async def create(self, refresh_token: DomainRefreshToken) -> DomainRefreshToken:
+        """Creates a new refresh token record in the database.
+
+        Args:
+            refresh_token: The domain `DomainRefreshToken` entity to be created.
+
+        Returns:
+            The created `DomainRefreshToken` entity, hydrated with database-assigned values.
+
+        Raises:
+            IntegrityError: If there's a database integrity violation during creation (e.g., duplicate token).
+            Exception: For other unexpected database errors.
+        """
         refresh_token = self._to_pydantic_model(refresh_token)
 
-        self._db.add(refresh_token)
+        self._session.add(refresh_token)
         try:
-            self._db.commit()
-            self._db.refresh(refresh_token)
+            await self._session.commit()
+            await self._session.refresh(refresh_token)
         except IntegrityError as e:
-            self._db.rollback()
+            await self._session.rollback()
             e.orig = "Failed to create refresh token"
             raise e
         except Exception as e:
-            self._db.rollback()
-            if hasattr(e, "statement") and hasattr(e, "params"):
-                safe_sql, safe_params = self.sanitizer.sanitize_sql_for_logging(
-                    e.statement, e.params
-                )
-                logger.error(
-                    f"📝 Unhandled exception occurred while creating refresh_token: {type(e).__name__, safe_sql, safe_params}"
-                )
-            else:
-                logger.error(
-                    f"📝 Unhandled exception occurred while creating refresh_token: {self.sanitizer.sanitize_exception_for_logging(e)}"
-                )
+            await self._session.rollback()
+
+            raise e
 
         return self._to_domain_model(refresh_token)
 
-    def get_by_token(self, token: str) -> DomainRefreshToken:
-        pydantic_refresh_token = self._db.exec(
+    @cache(timeout_seconds=None, key_prefix="auth:token")
+    async def get_by_token(self, token: str) -> DomainRefreshToken:
+        """Retrieves a refresh token by its string value from the database.
+
+        Includes logic to check if the token is revoked or expired.
+
+        Args:
+            token: The string value of the refresh token to retrieve.
+
+        Returns:
+            The `DomainRefreshToken` entity if found and valid.
+
+        Raises:
+            HTTPException: If the token is not found, is revoked, or has expired.
+        """
+        refresh_token_data = await self._session.execute(
             select(RefreshToken).where(
                 RefreshToken.token == token,
                 not RefreshToken.is_revoked,
                 RefreshToken.expires_at > datetime.now(),
             )
-        ).first()
+        )
+        pydantic_refresh_token = refresh_token_data.first()
         if not pydantic_refresh_token:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Invalid refresh token"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Non-existent or blacklisted refresh token",
             )
-
+        pydantic_refresh_token = pydantic_refresh_token[0]
         return self._to_domain_model(pydantic_refresh_token)
 
-    def revoke_token(self, token: str) -> None:
-        pydantic_refresh_token = self._db.exec(
-            select(RefreshToken).where(RefreshToken.token == token)
-        ).first()
-        if pydantic_refresh_token and not pydantic_refresh_token.is_revoked:
+    async def revoke_token(self, token: str) -> None:
+        """Revokes a refresh token by marking it as revoked in the database.
+
+        Args:
+            token: The string value of the refresh token to revoke.
+        """
+        refresh_token_data = await self._session.execute(
+            select(RefreshToken).where(
+                RefreshToken.token == token,
+                not RefreshToken.is_revoked,
+                RefreshToken.expires_at > datetime.now(),
+            )
+        )
+        pydantic_refresh_token = refresh_token_data.first()
+
+        if pydantic_refresh_token and not pydantic_refresh_token[0].is_revoked:
+            pydantic_refresh_token = pydantic_refresh_token[0]
             pydantic_refresh_token.is_revoked = True
-            self._db.add(pydantic_refresh_token)
-            self._db.commit()
-            self._db.refresh(pydantic_refresh_token)
+            self._session.add(pydantic_refresh_token)
+            try:
+                await self._session.commit()
+                await self._session.refresh(pydantic_refresh_token)
+            except Exception as e:
+                await self._session.rollback()
+
+                raise e
 
     def _to_pydantic_model(
         self, domain_refresh_token: DomainRefreshToken
     ) -> RefreshToken:
+        """Converts a domain `DomainRefreshToken` entity to a Pydantic `RefreshToken` model.
+
+        Args:
+            domain_refresh_token: The domain entity to convert.
+
+        Returns:
+            A Pydantic `RefreshToken` model instance.
+        """
         domain_data = domain_refresh_token.__dict__.copy()
 
-        # Remove fields managed by the DB or not needed for creation
         domain_data.pop("id", None)
         domain_data.pop("created_at", None)
         domain_data.pop("expires_at", None)
@@ -88,52 +142,84 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
     def _to_domain_model(
         self, pydantic_refresh_token: RefreshToken
     ) -> DomainRefreshToken:
+        """Converts a Pydantic `RefreshToken` model to a domain `DomainRefreshToken` entity.
+
+        Args:
+            pydantic_refresh_token: The Pydantic model to convert.
+
+        Returns:
+            A domain `DomainRefreshToken` entity instance.
+        """
         return DomainRefreshToken(**pydantic_refresh_token.model_dump())
 
 
 class BlacklistTokenRepository(DomainBlacklistTokenRepository):
-    def __init__(self, db: Session, sanitizer: Any) -> None:
-        self._db = db
-        self.sanitizer = sanitizer
+    """Concrete implementation of `BlacklistTokenRepository` for managing blacklisted tokens in the database.
 
-    def create(self, token: BlacklistToken) -> None:
+    This repository handles the creation of blacklisted token entries and checking
+    if a token has been blacklisted, mapping between domain entities and SQLModel ORM objects.
+    """
+
+    def __init__(self, db: AsyncSession) -> None:
+        """Initializes the BlacklistTokenRepository.
+
+        Args:
+            db: The asynchronous SQLAlchemy session for database operations.
+        """
+        self._session = db
+
+    async def create(self, token: BlacklistToken) -> None:
+        """Adds an access token to the blacklist.
+
+        Args:
+            token: The domain `BlacklistToken` entity to be blacklisted.
+
+        Raises:
+            IntegrityError: If there's a database integrity violation during creation (e.g., duplicate token).
+            Exception: For other unexpected database errors.
+        """
         pydantic_token = self._to_pydantic_model(token)
 
-        self._db.add(pydantic_token)
+        self._session.add(pydantic_token)
         try:
-            self._db.commit()
+            await self._session.commit()
         except IntegrityError as e:
-            self._db.rollback()
+            await self._session.rollback()
             e.orig = "Failed to blacklist token"
             raise e
         except Exception as e:
-            self._db.rollback()
-            if hasattr(e, "statement") and hasattr(e, "params"):
-                safe_sql, safe_params = self.sanitizer.sanitize_sql_for_logging(
-                    e.statement, e.params
-                )
-                logger.error(
-                    f"📝 Unhandled exception occurred while blacklisting token: {type(e).__name__} - SQL: {safe_sql}, Params: {safe_params}"
-                )
-            else:
-                logger.error(
-                    f"📝 Unhandled exception occurred while blacklisting token: {type(e).__name__}: {self.sanitizer.sanitize_exception_for_logging(str(e))}"
-                )
+            await self._session.rollback()
 
-    def is_token_blacklisted(self, token: str, raise_error: bool = False) -> bool:
-        blacklisted = self._db.exec(
+            raise e
+
+    @cache(timeout_seconds=None, key_prefix="auth:token_blacklisted")
+    async def is_token_blacklisted(self, token: str, raise_error: bool = False) -> bool:
+        """Checks if a given token is present in the blacklist and is still active.
+
+        Args:
+            token: The access token string to check.
+            raise_error: If True, raises an `HTTPException` if the token is blacklisted.
+
+        Returns:
+            True if the token is blacklisted and not expired, False otherwise.
+
+        Raises:
+            HTTPException: If `raise_error` is True and the token is blacklisted.
+        """
+        token_data = await self._session.execute(
             select(BlacklistedToken).where(
                 BlacklistedToken.token == token,
                 BlacklistedToken.expires_at > datetime.now(timezone.utc),
             )
-        ).first()
+        )
+        blacklisted = token_data.first()
 
         is_blacklisted = blacklisted is not None
 
         if is_blacklisted and raise_error:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
+                detail="Authentication token is blacklisted",
             )
 
         return is_blacklisted
@@ -141,6 +227,14 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
     def _to_pydantic_model(
         self, domain_blacklisted_token: DomainBlacklistedToken
     ) -> BlacklistedToken:
+        """Converts a domain `DomainBlacklistedToken` entity to a Pydantic `BlacklistedToken` model.
+
+        Args:
+            domain_blacklisted_token: The domain entity to convert.
+
+        Returns:
+            A Pydantic `BlacklistedToken` model instance.
+        """
         domain_data = domain_blacklisted_token.__dict__.copy()
 
         # Remove fields managed by the DB or not needed for creation
@@ -152,4 +246,12 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
     def _to_domain_model(
         self, pydantic_blacklisted_token: BlacklistedToken
     ) -> DomainBlacklistedToken:
+        """Converts a Pydantic `BlacklistedToken` model to a domain `DomainBlacklistedToken` entity.
+
+        Args:
+            pydantic_blacklisted_token: The Pydantic model to convert.
+
+        Returns:
+            A domain `DomainBlacklistedToken` entity instance.
+        """
         return DomainBlacklistedToken(**pydantic_blacklisted_token.model_dump())
