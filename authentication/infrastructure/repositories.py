@@ -80,7 +80,7 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
         refresh_token_data = await self._session.execute(
             select(RefreshToken).where(
                 RefreshToken.token == token,
-                not RefreshToken.is_revoked,
+                RefreshToken.is_revoked == False,
                 RefreshToken.expires_at > datetime.now(),
             )
         )
@@ -103,7 +103,7 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
             select(RefreshToken).where(
                 RefreshToken.token == token,
                 RefreshToken.user_id == user_id,
-                not RefreshToken.is_revoked,
+                RefreshToken.is_revoked == False,
                 RefreshToken.expires_at > datetime.now(),
             )
         )

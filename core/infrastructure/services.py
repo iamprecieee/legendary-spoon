@@ -471,6 +471,20 @@ class RedisCacheService(CacheServiceInterface):
         except Exception as e:
             raise e
 
+    async def close(self) -> None:
+        """Closes the Redis connection.
+
+        Returns:
+            True if the item was successfully deleted, False otherwise.
+        """
+        if self._redis:
+            await self._redis.aclose()
+
+            if hasattr(self._redis, "connection_pool"):
+                await self._redis.connection_pool.disconnect()
+
+            self._redis = None
+
     def _serialize_value(self, value: Any) -> bytes:
         """Serializes a Python object into bytes for storage in Redis.
 

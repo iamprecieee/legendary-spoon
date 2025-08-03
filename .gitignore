@@ -7,3 +7,6 @@ __pycache__/
 logs/
 *.pem
 .ruff_cache
+*.crt
+*.csr
+*.key

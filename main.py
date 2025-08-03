@@ -22,8 +22,11 @@ def create_app():
     from sqlalchemy.exc import IntegrityError, SQLAlchemyError
     from starlette.exceptions import HTTPException as StarletteHTTPException
 
-    from config.database import create_tables, run_migrations
+    from config.database import create_tables, run_migrations, close_database_engine
     from core.infrastructure.exceptions import global_exception_handler
+    from core.infrastructure.factory import get_redis_cache_service
+
+    redis_service = None
 
     @asynccontextmanager
     async def custom_lifespan(app):
@@ -41,19 +44,44 @@ def create_app():
         Raises:
             Exception: If database migration or table creation fails during startup.
         """
+        nonlocal redis_service
+
         setup_logging()
+
         try:
             logger.info("🔧 Creating non-existent database tables 🔧")
             await create_tables()
+
             logger.info("🔧 Running database migrations 🔧")
             await run_migrations()
+
+            logger.info("🔧 Initializing Redis connection 🔧")
+            redis_service = await get_redis_cache_service()
+            logger.info(
+                f"✅ Redis pinged: {await (await redis_service._get_redis()).ping()} ✅"
+            )
         except Exception as e:
             logger.error(f"📝 Migration or table creation failed: {e}")
             raise e
 
         logger.info("✅ Application startup completed ✅")
         logger.info("🚀✨ Legendary Spoon is now running! ✨🚀")
+
         yield
+
+        if redis_service:
+            try:
+                logger.info("🔧 Closing Redis connection 🔧")
+                await redis_service.close()
+            except Exception as e:
+                logger.error(f"❌ Error closing Redis: {e}")
+
+        try:
+            logger.info("🔧 Closing database connections 🔧")
+            await close_database_engine()
+        except Exception as e:
+            logger.error(f"❌ Error closing database: {e}")
+
         logger.info("👋 Application shutting down...")
 
     app = FastAPI(lifespan=custom_lifespan)
@@ -98,7 +126,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:create_app",
         port=8001,
-        reload=True,
+        reload=settings.debug,
         factory=True,
         log_config=None,
         ssl_keyfile=settings.ssl_keyfile_path,

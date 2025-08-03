@@ -95,6 +95,15 @@ Getting Legendary Spoon up and running is a breeze!
         *   `GOOGLE_CLIENT_SECRET="your_google_client_secret"` (Required for Google OAuth)
         *   `GOOGLE_REDIRECT_URI="http://localhost:8001/auth/google/callback"` (For Google OAuth, adjust if your app runs on a different port)
         *   `LOGGING_LEVEL="INFO"` (or "DEBUG", "WARNING", etc.)
+    *   Generate ssl certs:
+        ```bash
+        # Generate private key
+        openssl genrsa -out private.key 4096
+        # Generate certificate signing request
+        openssl req -new -key private.key -out certificate.csr
+        # Generate self-signed certificate
+        openssl x509 -req -days 365 -in certificate.csr -signkey private.key -out certificate.crt
+        ```
 
 4.  **Run database migrations:**
     ```bash

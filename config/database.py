@@ -1,10 +1,13 @@
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlmodel import SQLModel
 
 from alembic import command
 from alembic.config import Config
 
 from .base import Settings, get_settings
+
+
+_engine: AsyncEngine | None = None
 
 
 def get_database_url(settings: Settings, is_async=False) -> str:
@@ -30,17 +33,35 @@ def get_database_url(settings: Settings, is_async=False) -> str:
 
 
 async def get_database_engine():
-    """Provides an asynchronous SQLAlchemy database engine.
+    """
+    Provides a singleton asynchronous SQLAlchemy database engine.
 
     The engine is configured based on the application's database URL.
 
     Returns:
         An asynchronous SQLAlchemy engine instance.
     """
-    settings = get_settings()
-    database_url = get_database_url(settings, is_async=True)
+    global _engine
 
-    return create_async_engine(database_url)
+    if _engine is None:
+        settings = get_settings()
+        database_url = get_database_url(settings, is_async=True)
+        _engine = create_async_engine(
+            database_url, pool_pre_ping=True, pool_recycle=300, echo=False
+        )
+
+    return _engine
+
+
+async def close_database_engine():
+    """Properly dispose of the database engine."""
+    global _engine
+    global _sync_engine
+
+    if _engine:
+        await _engine.dispose()
+
+        _engine = None
 
 
 async def get_database_session():
