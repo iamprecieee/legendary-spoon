@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from core.infrastructure.cache.decorators import cache
+from core.infrastructure.decorators import cache
 
 from ..application.ports import (
     BlacklistTokenRepository as DomainBlacklistTokenRepository,
@@ -55,9 +55,9 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
             await self._session.rollback()
             e.orig = "Failed to create refresh token"
             raise e
+        
         except Exception as e:
             await self._session.rollback()
-
             raise e
 
         return self._to_domain_model(refresh_token)
@@ -85,11 +85,13 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
             )
         )
         pydantic_refresh_token = refresh_token_data.first()
+        
         if not pydantic_refresh_token:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Non-existent or blacklisted refresh token",
             )
+            
         pydantic_refresh_token = pydantic_refresh_token[0]
         return self._to_domain_model(pydantic_refresh_token)
 
@@ -98,6 +100,10 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
 
         Args:
             token: The string value of the refresh token to revoke.
+        
+        Raises:
+            HTTPException: If the token is not found.
+            Exception: For other unexpected database errors.
         """
         refresh_token_data = await self._session.execute(
             select(RefreshToken).where(
@@ -125,7 +131,6 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
 
         except Exception as e:
             await self._session.rollback()
-
             raise e
 
     def _to_pydantic_model(
@@ -195,6 +200,7 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
             await self._session.rollback()
             e.orig = "Failed to blacklist token"
             raise e
+        
         except Exception as e:
             await self._session.rollback()
 
@@ -221,7 +227,6 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
             )
         )
         blacklisted = token_data.first()
-
         is_blacklisted = blacklisted is not None
 
         if is_blacklisted and raise_error:

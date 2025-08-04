@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 import httpx
 import jwt
+from cryptography.hazmat.primitives import serialization
 from fastapi import HTTPException, status
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
@@ -49,7 +50,6 @@ class PasswordService(PasswordServiceInterface):
             ValueError: If the password does not meet the defined strength requirements.
         """
         self._ensure_strong_password(password)
-
         return self.pwd_context.hash(password)
 
     async def check_password(self, raw_password: str, hashed_password: str) -> bool:
@@ -66,6 +66,7 @@ class PasswordService(PasswordServiceInterface):
 
         Raises:
             ValueError: If the raw password does not meet the defined strength requirements.
+            HTTPException: If the raw password does not match stored hashed password.
         """
         self._ensure_strong_password(raw_password)
 
@@ -115,7 +116,7 @@ class JWTTokenService(JWTTokenServiceInterface):
         """Initializes the JWTTokenService.
 
         Args:
-            settings: Application settings, providing `secret_key`, `algorithm`,
+            settings: Application settings, providing either`secret_key` or `private`/`public` keys, `algorithm`,
                       `access_token_expiry`, and `refresh_token_expiry`.
         """
         self._settings = settings
@@ -151,7 +152,7 @@ class JWTTokenService(JWTTokenServiceInterface):
             minutes=self._settings.access_token_expiry
         )
         data_to_encode.update({"exp": expiry})
-
+        
         return jwt.encode(
             data_to_encode,
             self._signing_key,
@@ -181,7 +182,7 @@ class JWTTokenService(JWTTokenServiceInterface):
             days=self._settings.refresh_token_expiry
         )
         data_to_encode.update({"exp": expiry})
-
+        
         return jwt.encode(
             data_to_encode,
             self._signing_key,
@@ -189,7 +190,7 @@ class JWTTokenService(JWTTokenServiceInterface):
         )
 
     async def decode_jwt_token(self, token: str) -> Dict[str, Any]:
-        """Decodes a raw JWT token using the configured secret key and algorithm.
+        """Decodes a raw JWT token using the configured secret key or private/public keys, and algorithm.
 
         This method performs basic decoding but does not validate token type or expiration.
 
@@ -228,6 +229,7 @@ class JWTTokenService(JWTTokenServiceInterface):
         """
         try:
             payload = await self.decode_jwt_token(token)
+            
             if payload.get("type") != "access":
                 raise InvalidTokenError
             # Check token expiration
@@ -242,7 +244,6 @@ class JWTTokenService(JWTTokenServiceInterface):
                 "is_active": payload.get("is_active", True),
                 "password": "",  # Password is not included in token
             }
-
             return DomainUser(**payload_data)
 
         except InvalidTokenError as e:
@@ -293,21 +294,16 @@ class JWTTokenService(JWTTokenServiceInterface):
         Returns:
             The private key as a PEM-encoded string.
         """
-        from cryptography.hazmat.primitives import serialization
-
         key_content = self._settings.private_key_path.read_bytes()
-
         private_key = serialization.load_pem_private_key(
             key_content,
             password=self._settings.private_key_password.encode(encoding="utf-8"),
         )
-
         pem_private_key = private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption(),
         )
-
         return pem_private_key.decode(encoding="utf-8")
 
     def _load_public_key(self) -> str:

@@ -52,7 +52,6 @@ async def create_user(
         password_service=password_service,
     )
     created_user = await create_user_rule.execute()
-
     return CreatedResponse(
         data=UserResponse(**created_user.__dict__), message="User creation successful"
     )
@@ -89,8 +88,8 @@ async def login_user(
         token_service=token_service,
         refresh_token_repository=refresh_token_repository,
     )
-
     login_data = await login_user_rule.execute()
+    
     if not login_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User login failed"
@@ -132,8 +131,8 @@ async def refresh_token(
         token_service=token_service,
         refresh_token_repository=refresh_token_repository,
     )
-
     refresh_data = await refresh_rule.execute()
+    
     if not refresh_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token refresh failed"
@@ -181,8 +180,8 @@ async def login_for_access_token(
         token_service=token_service,
         refresh_token_repository=refresh_token_repository,
     )
-
     login_data = await login_user_rule.execute()
+    
     if not login_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -225,9 +224,7 @@ async def logout_user(
         blacklist_token_repository=blacklist_token_repository,
         refresh_token_repository=refresh_token_repository,
     )
-
     await logout_rule.execute()
-
     return SuccessResponse(
         data={"message": "Logged out successfully"}, message="Logout successful"
     )
@@ -291,9 +288,7 @@ async def google_callback(
         refresh_token_repository=refresh_token_repository,
         password_service=password_service,
     )
-
     user_data, token_data, is_new_user = await oauth_callback_rule.execute()
-
     return SuccessResponse(
         data=LoginResponse(**user_data.__dict__, **token_data.__dict__),
         message=f"User {'created' if is_new_user else 'logged in'} successfully via OAuth",

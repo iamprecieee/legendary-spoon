@@ -44,5 +44,4 @@ class OAuth2PasswordBearerWithEmail(OAuth2PasswordBearer):
 
     async def __call__(self, request: Request) -> str | None:
         """Extracts the token from the request using the parent class logic."""
-
         return await super().__call__(request)

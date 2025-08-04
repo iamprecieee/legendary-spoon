@@ -51,7 +51,6 @@ class CreateUserRule:
             The `DomainUser` entity of the newly created user.
         """
         hashed_password = await self.password_service.hash_password(self.password)
-
         created_user = await self.user_repository.create(
             DomainUser(email=self.email, password=hashed_password)
         )
@@ -95,11 +94,9 @@ class AuthenticateUserRule:
             The `DomainUser` entity if authentication is successful.
         """
         existing_user = await self.user_repository.get_by_email(self.email)
-
         await self.password_service.check_password(
             self.password, existing_user.password
         )
-
         return existing_user
 
 
@@ -151,18 +148,14 @@ class LoginUserRule(AuthenticateUserRule):
             Exception: If authentication fails (inherited from AuthenticateUserRule).
         """
         existing_user = await super().execute()
-
         access_token = await self.token_service.create_access_token(existing_user)
         refresh_token = await self.token_service.create_refresh_token(existing_user)
-
         refresh_token_entity = RefreshToken(
             token=refresh_token,
             user_id=existing_user.id,
         )
         await self.refresh_token_repository.create(refresh_token_entity)
-
         token_pair = TokenPair(access_token=access_token, refresh_token=refresh_token)
-
         return existing_user, token_pair
 
 
@@ -279,7 +272,6 @@ class RefreshTokenRule:
         token_pair = TokenPair(
             access_token=new_access_token, refresh_token=new_refresh_token
         )
-
         return self.user, token_pair
 
 
@@ -333,14 +325,13 @@ class LogoutRule:
             await self.refresh_token_repository.revoke_token(
                 self.refresh_token, self.user_id
             )
-
+            
             cache_key = self.cache_service.get_cache_key(
                 "auth:token",
                 "authentication.infrastructure.repositories.RefreshTokenRepository.get_by_token",
                 self,  # will get skipped
                 self.refresh_token,
             )
-
             await self.cache_service.delete(cache_key)
 
 
@@ -369,8 +360,6 @@ class OAuthLoginRule:
         Returns:
             The authorization URL string.
         """
-        import secrets
-
         state = secrets.token_urlsafe(32)
         return self.oauth_service.get_authorization_url(state)
 
@@ -427,7 +416,6 @@ class OAuthCallbackRule:
             HTTPException: If OAuth flow fails or user information cannot be retrieved.
         """
         token_data = await self.oauth_service.exchange_auth_code(self.auth_code)
-
         access_token = token_data.get("access_token")
 
         user_info = await self.oauth_service.fetch_user_info(access_token)

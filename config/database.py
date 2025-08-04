@@ -84,7 +84,6 @@ async def create_tables():
     that the database schema is up-to-date with the defined models.
     """
     engine = await get_database_engine()
-
     async with engine.begin() as connection:
         await connection.run_sync(SQLModel.metadata.create_all)
 

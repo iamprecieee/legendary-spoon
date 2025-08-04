@@ -109,12 +109,12 @@ async def get_current_user(
         current_user_rule = CurrentUserRule(
             token=token, token_service=token_service, user_repository=user_repository
         )
-
         current_user = await current_user_rule.execute()
         return current_user
 
     except HTTPException:
         raise
+    
     except Exception as e:
         raise e
 

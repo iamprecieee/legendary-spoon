@@ -3,7 +3,7 @@ from typing import Callable
 
 from loguru import logger
 
-from ..factory import get_data_sanitizer, get_redis_cache_service
+from .factory import get_data_sanitizer, get_redis_cache_service
 
 
 def cache(
@@ -32,7 +32,6 @@ def cache(
             func_name = f"{func.__module__}.{func.__qualname__}"
 
             cache_service = await get_redis_cache_service()
-
             cache_key = cache_service.get_cache_key(
                 key_prefix, func_name, *args, **kwargs
             )
@@ -50,7 +49,6 @@ def cache(
                 result = await func(*args, **kwargs)
 
                 await cache_service.set(cache_key, result, timeout_seconds)
-
                 return result
 
             except Exception as e:
