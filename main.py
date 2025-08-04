@@ -24,9 +24,10 @@ def create_app():
 
     from config.database import create_tables, run_migrations, close_database_engine
     from core.infrastructure.exceptions import global_exception_handler
-    from core.infrastructure.factory import get_redis_cache_service
-
-    redis_service = None
+    from core.infrastructure.factory import (
+        get_redis_cache_service,
+        close_redis_cache_service,
+    )
 
     @asynccontextmanager
     async def custom_lifespan(app):
@@ -44,8 +45,6 @@ def create_app():
         Raises:
             Exception: If database migration or table creation fails during startup.
         """
-        nonlocal redis_service
-
         setup_logging()
 
         try:
@@ -55,26 +54,28 @@ def create_app():
             logger.info("🔧 Running database migrations 🔧")
             await run_migrations()
 
-            logger.info("🔧 Initializing Redis connection 🔧")
-            redis_service = await get_redis_cache_service()
-            logger.info(
-                f"✅ Redis pinged: {await (await redis_service._get_redis()).ping()} ✅"
-            )
         except Exception as e:
             logger.error(f"📝 Migration or table creation failed: {e}")
             raise e
+
+        logger.info("🔧 Initializing Redis connection 🔧")
+        redis_service = await get_redis_cache_service()
+        redis_client = await redis_service._get_redis()
+        ping_result = await redis_client.ping()
+        logger.info(f"✅ Redis pinged: {ping_result} ✅")
 
         logger.info("✅ Application startup completed ✅")
         logger.info("🚀✨ Legendary Spoon is now running! ✨🚀")
 
         yield
 
-        if redis_service:
-            try:
-                logger.info("🔧 Closing Redis connection 🔧")
-                await redis_service.close()
-            except Exception as e:
-                logger.error(f"❌ Error closing Redis: {e}")
+        logger.info("🔧 Starting shutdown cleanup 🔧")
+
+        try:
+            logger.info("🔧 Closing Redis connection 🔧")
+            await close_redis_cache_service()  # Use the factory's close method
+        except Exception as e:
+            logger.error(f"❌ Error closing Redis: {e}")
 
         try:
             logger.info("🔧 Closing database connections 🔧")

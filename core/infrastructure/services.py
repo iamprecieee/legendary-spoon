@@ -405,6 +405,7 @@ class RedisCacheService(CacheServiceInterface):
                 health_check_interval=30,
                 ssl_cert_reqs=self._settings.ssl_cert_reqs,
                 ssl=self._settings.redis_use_ssl,
+                max_connections=10,
             )
 
         return self._redis

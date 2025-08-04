@@ -61,7 +61,7 @@ class UserRepository(DomainUserRepository):
 
         return self._to_domain_model(user)
 
-    @cache(timeout_seconds=None, key_prefix="user:email")
+    @cache(timeout_seconds=300, key_prefix="user:email")
     async def get_by_email(self, email: str) -> DomainUser:
         """Retrieves a user by their email address from the database.
 
@@ -83,7 +83,7 @@ class UserRepository(DomainUserRepository):
         pydantic_user = pydantic_user[0]
         return self._to_domain_model(pydantic_user)
 
-    @cache(timeout_seconds=None, key_prefix="user:id")
+    @cache(timeout_seconds=300, key_prefix="user:id")
     async def get_by_id(self, user_id: int) -> DomainUser:
         """Retrieves a user by their unique ID from the database.
 
@@ -105,7 +105,7 @@ class UserRepository(DomainUserRepository):
         pydantic_user = pydantic_user[0]
         return self._to_domain_model(pydantic_user)
 
-    @cache(timeout_seconds=None, key_prefix="user:social_id")
+    @cache(timeout_seconds=300, key_prefix="user:social_id")
     async def get_by_social_id(self, social_id: str) -> DomainUser | None:
         """Retrieves a user by their social media ID from the database.
 

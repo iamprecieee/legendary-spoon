@@ -98,11 +98,21 @@ Getting Legendary Spoon up and running is a breeze!
     *   Generate ssl certs:
         ```bash
         # Generate private key
-        openssl genrsa -out private.key 4096
+        openssl genrsa -out certificate.key 4096
+
         # Generate certificate signing request
-        openssl req -new -key private.key -out certificate.csr
+        openssl req -new -key certificate.key -out certificate.csr
+
         # Generate self-signed certificate
-        openssl x509 -req -days 365 -in certificate.csr -signkey private.key -out certificate.crt
+        openssl x509 -req -days 365 -in certificate.csr -signkey certificate.key -out certificate.crt
+        ```
+    *   Generate RSA keys (for JWT signing)
+        ```bash
+        # Generate private key
+        openssl genrsa -aes256 -out private_key.pem 2048
+
+        # Generate public key
+        openssl rsa -in private_key.pem -pubout -out public_key.pem
         ```
 
 4.  **Run database migrations:**

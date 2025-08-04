@@ -3,7 +3,6 @@ from functools import wraps
 from typing import Callable
 
 from loguru import logger
-
 from ..factory import get_data_sanitizer, get_redis_cache_service
 
 

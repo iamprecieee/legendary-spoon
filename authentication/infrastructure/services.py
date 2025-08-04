@@ -120,6 +120,13 @@ class JWTTokenService(JWTTokenServiceInterface):
         """
         self._settings = settings
 
+        if settings.algorithm == "RS256":
+            self._signing_key = self._load_private_key()
+            self._verification_key = self._load_public_key()
+        else:
+            self._signing_key = settings.secret_key
+            self._verification_key = settings.secret_key
+
     async def create_access_token(self, user: DomainUser) -> str:
         """Creates a signed JWT access token for the given user.
 
@@ -147,7 +154,7 @@ class JWTTokenService(JWTTokenServiceInterface):
 
         return jwt.encode(
             data_to_encode,
-            self._settings.secret_key,
+            self._signing_key,
             algorithm=self._settings.algorithm,
         )
 
@@ -177,7 +184,7 @@ class JWTTokenService(JWTTokenServiceInterface):
 
         return jwt.encode(
             data_to_encode,
-            self._settings.secret_key,
+            self._signing_key,
             algorithm=self._settings.algorithm,
         )
 
@@ -197,7 +204,7 @@ class JWTTokenService(JWTTokenServiceInterface):
         """
         try:
             return jwt.decode(
-                token, self._settings.secret_key, algorithms=[self._settings.algorithm]
+                token, self._verification_key, algorithms=[self._settings.algorithm]
             )
         except InvalidTokenError:
             raise HTTPException(
@@ -278,6 +285,39 @@ class JWTTokenService(JWTTokenServiceInterface):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Failed to decode refresh token",
             ) from e
+
+    def _load_private_key(self) -> str:
+        """
+        Loads the RSA private key from the file specified in settings.
+
+        Returns:
+            The private key as a PEM-encoded string.
+        """
+        from cryptography.hazmat.primitives import serialization
+
+        key_content = self._settings.private_key_path.read_bytes()
+
+        private_key = serialization.load_pem_private_key(
+            key_content,
+            password=self._settings.private_key_password.encode(encoding="utf-8"),
+        )
+
+        pem_private_key = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+
+        return pem_private_key.decode(encoding="utf-8")
+
+    def _load_public_key(self) -> str:
+        """
+        Loads the RSA public key from the file specified in settings.
+
+        Returns:
+            The public key as a PEM-encoded string.
+        """
+        return self._settings.public_key_path.read_text()
 
 
 class GoogleOAuthService(OAuthServiceInterface):

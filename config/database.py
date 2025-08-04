@@ -46,9 +46,7 @@ async def get_database_engine():
     if _engine is None:
         settings = get_settings()
         database_url = get_database_url(settings, is_async=True)
-        _engine = create_async_engine(
-            database_url, pool_pre_ping=True, pool_recycle=300, echo=False
-        )
+        _engine = create_async_engine(database_url, echo=False)
 
     return _engine
 
@@ -56,7 +54,6 @@ async def get_database_engine():
 async def close_database_engine():
     """Properly dispose of the database engine."""
     global _engine
-    global _sync_engine
 
     if _engine:
         await _engine.dispose()
