@@ -62,7 +62,7 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
 
         return self._to_domain_model(refresh_token)
 
-    @cache(timeout_seconds=None, key_prefix="auth:token")
+    @cache(timeout_seconds=300, key_prefix="auth:token")
     async def get_by_token(self, token: str) -> DomainRefreshToken:
         """Retrieves a refresh token by its string value from the database.
 
@@ -122,6 +122,7 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
         try:
             await self._session.commit()
             await self._session.refresh(pydantic_refresh_token)
+
         except Exception as e:
             await self._session.rollback()
 

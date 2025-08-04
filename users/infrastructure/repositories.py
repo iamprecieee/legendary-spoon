@@ -81,6 +81,7 @@ class UserRepository(DomainUserRepository):
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
         pydantic_user = pydantic_user[0]
+
         return self._to_domain_model(pydantic_user)
 
     @cache(timeout_seconds=300, key_prefix="user:id")
@@ -105,7 +106,6 @@ class UserRepository(DomainUserRepository):
         pydantic_user = pydantic_user[0]
         return self._to_domain_model(pydantic_user)
 
-    @cache(timeout_seconds=300, key_prefix="user:social_id")
     async def get_by_social_id(self, social_id: str) -> DomainUser | None:
         """Retrieves a user by their social media ID from the database.
 

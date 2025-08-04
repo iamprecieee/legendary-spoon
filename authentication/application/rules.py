@@ -1,6 +1,7 @@
 import secrets
 from typing import Tuple
 
+from core.application.ports import CacheServiceInterface
 from users.application.ports import UserRepository
 from users.domain.entities import User as DomainUser
 
@@ -216,6 +217,7 @@ class RefreshTokenRule:
         self,
         refresh_token: str,
         user: DomainUser,
+        cache_service: CacheServiceInterface,
         token_service: JWTTokenServiceInterface,
         refresh_token_repository: RefreshTokenRepository,
     ) -> None:
@@ -229,6 +231,7 @@ class RefreshTokenRule:
         """
         self.refresh_token = refresh_token
         self.user = user
+        self.cache_service = cache_service
         self.token_service = token_service
         self.refresh_token_repository = refresh_token_repository
 
@@ -257,6 +260,15 @@ class RefreshTokenRule:
             self.refresh_token, self.user.id
         )
 
+        cache_key = self.cache_service.get_cache_key(
+            "auth:token",
+            "authentication.infrastructure.repositories.RefreshTokenRepository.get_by_token",
+            self,  # will get skipped
+            self.refresh_token,
+        )
+
+        await self.cache_service.delete(cache_key)
+
         # Store the new refresh token
         new_refresh_token_entity = RefreshToken(
             token=new_refresh_token,
@@ -282,6 +294,7 @@ class LogoutRule:
         user_id: int,
         access_token: str,
         refresh_token: str | None,
+        cache_service: CacheServiceInterface,
         token_service: JWTTokenServiceInterface,
         blacklist_token_repository: BlacklistTokenRepository,
         refresh_token_repository: RefreshTokenRepository,
@@ -299,6 +312,7 @@ class LogoutRule:
         self.user_id = user_id
         self.access_token = access_token
         self.refresh_token = refresh_token
+        self.cache_service = cache_service
         self.token_service = token_service
         self.blacklist_token_repository = blacklist_token_repository
         self.refresh_token_repository = refresh_token_repository
@@ -319,6 +333,15 @@ class LogoutRule:
             await self.refresh_token_repository.revoke_token(
                 self.refresh_token, self.user_id
             )
+
+            cache_key = self.cache_service.get_cache_key(
+                "auth:token",
+                "authentication.infrastructure.repositories.RefreshTokenRepository.get_by_token",
+                self,  # will get skipped
+                self.refresh_token,
+            )
+
+            await self.cache_service.delete(cache_key)
 
 
 class OAuthLoginRule:
@@ -363,6 +386,7 @@ class OAuthCallbackRule:
     def __init__(
         self,
         auth_code: str,
+        cache_service: CacheServiceInterface,
         oauth_service: OAuthServiceInterface,
         user_repository: UserRepository,
         token_service: JWTTokenServiceInterface,
@@ -380,6 +404,7 @@ class OAuthCallbackRule:
             password_service: An instance of `PasswordServiceInterface` for password hashing.
         """
         self.auth_code = auth_code
+        self.cache_service = cache_service
         self.oauth_service = oauth_service
         self.user_repository = user_repository
         self.token_service = token_service
@@ -423,10 +448,25 @@ class OAuthCallbackRule:
                 await self.user_repository.link_social_account(
                     user_email=social_user.email, social_data=user_info
                 )
+
+                cache_key_email = self.cache_service.get_cache_key(
+                    "user:email",
+                    "users.infrastructure.repositories.UserRepository.get_by_email",
+                    self,  # Will get ignored
+                    social_user.email,
+                )
+                cache_key_id = self.cache_service.get_cache_key(
+                    "user:id",
+                    "users.infrastructure.repositories.UserRepository.get_by_id",
+                    self,  # Will get ignored
+                    social_user.id,
+                )
+                await self.cache_service.set(cache_key_email, social_user, 300)
+                await self.cache_service.set(cache_key_id, social_user, 300)
             except Exception:
                 # If user with this email exists but no social account linked, create new user
                 # with a random password since it's an OAuth flow
-                random_password = secrets.token_urlsafe(16) + "@"
+                random_password = secrets.token_urlsafe(16) + "0Zz@"
                 hashed_random_password = await self.password_service.hash_password(
                     random_password
                 )

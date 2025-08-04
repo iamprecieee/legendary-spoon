@@ -22,11 +22,11 @@ def create_app():
     from sqlalchemy.exc import IntegrityError, SQLAlchemyError
     from starlette.exceptions import HTTPException as StarletteHTTPException
 
-    from config.database import create_tables, run_migrations, close_database_engine
+    from config.database import close_database_engine, create_tables, run_migrations
     from core.infrastructure.exceptions import global_exception_handler
     from core.infrastructure.factory import (
-        get_redis_cache_service,
         close_redis_cache_service,
+        get_redis_cache_service,
     )
 
     @asynccontextmanager

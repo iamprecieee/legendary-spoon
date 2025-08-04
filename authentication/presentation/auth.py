@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
+from core.infrastructure.factory import get_redis_cache_service
 from core.presentation.responses import CreatedResponse, SuccessResponse
 from users.infrastructure.factory import get_user_repository
 
@@ -105,7 +106,7 @@ async def login_user(
 @router.post("/refresh", response_model=SuccessResponse, status_code=200)
 async def refresh_token(
     request: RefreshRequest,
-    user_repository=Depends(get_user_repository),
+    cache_service=Depends(get_redis_cache_service),
     token_service=Depends(get_jwt_token_service),
     refresh_token_repository=Depends(get_refresh_token_repository),
     current_user=Depends(get_current_user),
@@ -127,6 +128,7 @@ async def refresh_token(
     refresh_rule = RefreshTokenRule(
         refresh_token=request.refresh_token,
         user=current_user,
+        cache_service=cache_service,
         token_service=token_service,
         refresh_token_repository=refresh_token_repository,
     )
@@ -195,6 +197,7 @@ async def login_for_access_token(
 async def logout_user(
     request: LogoutRequest,
     access_token: str = Depends(oauth2_scheme),
+    cache_service=Depends(get_redis_cache_service),
     token_service=Depends(get_jwt_token_service),
     refresh_token_repository=Depends(get_refresh_token_repository),
     blacklist_token_repository=Depends(get_blacklist_token_repository),
@@ -217,6 +220,7 @@ async def logout_user(
         user_id=current_user.id,
         access_token=access_token,
         refresh_token=request.refresh_token,
+        cache_service=cache_service,
         token_service=token_service,
         blacklist_token_repository=blacklist_token_repository,
         refresh_token_repository=refresh_token_repository,
@@ -254,6 +258,7 @@ async def google_login(
 @router.get("/google/callback", response_model=SuccessResponse, status_code=200)
 async def google_callback(
     code: str,
+    cache_service=Depends(get_redis_cache_service),
     oauth_service=Depends(get_google_oauth_service),
     user_repository=Depends(get_user_repository),
     token_service=Depends(get_jwt_token_service),
@@ -279,6 +284,7 @@ async def google_callback(
     """
     oauth_callback_rule = OAuthCallbackRule(
         auth_code=code,
+        cache_service=cache_service,
         oauth_service=oauth_service,
         user_repository=user_repository,
         token_service=token_service,

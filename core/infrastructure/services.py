@@ -1,3 +1,4 @@
+import hashlib
 import pickle
 import re
 from typing import Any, Dict, List, Pattern
@@ -409,6 +410,42 @@ class RedisCacheService(CacheServiceInterface):
             )
 
         return self._redis
+
+    @staticmethod
+    def get_cache_key(key_prefix: str, func_name: str, *args, **kwargs) -> str:
+        """Generates a unique cache key based on function arguments.
+
+        This function creates a consistent and unique string representation
+        of the arguments passed to a cached function, which is then hashed.
+
+        Args:
+            key_prefix: String value to identify the key.
+            func_name: Name of function/method being cached.
+            *args: Positional arguments passed to the function.
+            **kwargs: Keyword arguments passed to the function.
+
+        Returns:
+            A string concat of a hexadecimal MD5 hash string, prefix, and func_name representing the unique cache key.
+        """
+        key_parts = []
+
+        for i, arg in enumerate(args):
+            if i == 0 and hasattr(arg, "__dict__") and hasattr(arg, "__class__"):
+                continue
+
+            key_parts.append(f"arg{i}:{str(arg)}")
+
+        for key, value in sorted(kwargs.items()):
+            key_parts.append(f"{key}:{str(value)}")
+
+        key_string = "|".join(key_parts)
+        key_suffix = hashlib.md5(key_string.encode()).hexdigest()
+
+        return (
+            f"{key_prefix}:{func_name}:{key_suffix}"
+            if key_prefix
+            else f"{func_name}:{key_suffix}"
+        )
 
     async def get(self, key: str) -> Any:
         """Retrieves a value from Redis by its key.

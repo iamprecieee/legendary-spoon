@@ -9,6 +9,16 @@ class CacheServiceInterface(ABC):
     and deleting key-value pairs.
     """
 
+    @staticmethod
+    @abstractmethod
+    def get_cache_key(*args, **kwargs) -> str:
+        """Generates a unique cache key based on function arguments.
+
+        Returns:
+            str: The key value
+        """
+        pass
+
     @abstractmethod
     async def get(self, key: str) -> Any:
         """Retrieves a value from the cache by its key.

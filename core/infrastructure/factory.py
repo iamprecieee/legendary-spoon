@@ -2,7 +2,6 @@ from config.base import get_settings
 
 from .services import DataSanitizer, RedisCacheService
 
-
 _data_sanitizer = None
 _redis_cache_service = None
 
