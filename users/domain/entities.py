@@ -6,15 +6,26 @@ from pydantic import dataclasses, field_validator
 
 @dataclasses.dataclass
 class User:
-    """Represents a user in the domain layer.
+    """Core domain entity representing a user account in the system.
 
-    Attributes:
-        email: The unique email address of the user.
-        password: The hashed password of the user (optional, e.g., for OAuth users).
-        is_active: A boolean indicating if the user account is active (default: True).
-        created_at: The datetime when the user account was created (optional).
-        social_id: The ID from a social login provider if linked (optional).
-        id: The unique identifier for the user (optional).
+    Attributes
+    ----------
+    email: str
+        Unique email address of user.
+    password: str
+        Hashed password of user.
+    is_active: bool, default=True
+        Boolean indicating if user account is active.
+    created_at: datetime | None, optional
+        Datetime when user account was created.
+    social_id: str | None, optional
+        ID from a social login provider if linked.
+    id: int | None, optional
+        Unique identifier for user.
+
+    Note
+    ----
+    Password field should always contain hashed values.
     """
 
     email: str
@@ -27,16 +38,22 @@ class User:
     @field_validator("email")
     @classmethod
     def ensure_valid_email(cls, value):
-        """Validates the format of the email address.
+        """Perform email format validation using regex pattern matching.
 
-        Args:
-            value: The email string to validate.
+        Parameters
+        ----------
+        value: str
+            The email string to validate.
 
-        Returns:
+        Returns
+        -------
+        str
             The validated email string.
 
-        Raises:
-            ValueError: If the email address format is invalid.
+        Raises
+        ------
+        ValueError
+            If the email address format is invalid.
         """
         if not re.fullmatch(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", value):
             raise ValueError("Email address is invalid.")

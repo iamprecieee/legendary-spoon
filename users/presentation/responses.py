@@ -8,12 +8,18 @@ class UserResponse(BaseModel):
 
     Represents the structure of user information returned by the API.
 
-    Attributes:
-        id: The unique identifier of the user.
-        email: The email address of the user.
-        is_active: A boolean indicating if the user account is active.
-        social_id: The ID from a social login provider if linked (optional).
-        created_at: The datetime when the user account was created.
+    Attributes
+    ----------
+    id: int
+        User's ID.
+    email: str
+        User's email address.
+    is_active: bool
+        User's active status.
+    social_id: str | None, optional
+        User's social id.
+    created_at: datetime
+        User's creation timestamp.
     """
 
     id: int

@@ -5,15 +5,22 @@ from pydantic import dataclasses
 
 @dataclasses.dataclass
 class RefreshToken:
-    """Represents a refresh token used for obtaining new access tokens.
+    """Core domain entity representing a refresh token for obtaining new access tokens.
 
-    Attributes:
-        token: The unique string value of the refresh token.
-        user_id: The ID of the user to whom this refresh token belongs.
-        is_revoked: A boolean indicating if the token has been revoked (default: False).
-        expires_at: The datetime at which the token expires (optional).
-        created_at: The datetime when the token was created (optional).
-        id: The unique identifier for the refresh token entry (optional).
+    Attributes
+    ----------
+        token: str
+            Unique string value of refresh token.
+        user_id: int
+            ID of user to whom this refresh token belongs.
+        is_revoked: bool, default=False
+            Boolean indicating if token has been revoked.
+        expires_at: datetime | None, optional
+            Datetime at which token expires.
+        created_at: datetime | None, optional
+            Datetime when token was created.
+        id: int | None, optional
+            Unique identifier for refresh token entry.
     """
 
     token: str
@@ -26,16 +33,18 @@ class RefreshToken:
 
 @dataclasses.dataclass
 class BlacklistedToken:
-    """Represents an access token that has been explicitly blacklisted.
+    """Core domain entity representing an explicitly blacklisted access token.
 
-    Blacklisted tokens are no longer valid for authentication, even if their
-    natural expiry time has not yet passed.
-
-    Attributes:
-        token: The string value of the blacklisted access token.
-        expires_at: The original expiry datetime of the blacklisted token.
-        blacklisted_at: The datetime when the token was added to the blacklist (optional).
-        id: The unique identifier for the blacklisted token entry (optional).
+    Attributes
+    ----------
+    token: str
+        String value of blacklisted access token.
+    expires_at: datetime
+        Original expiry datetime of blacklisted token.
+    blacklisted_at: datetime | None, optional
+        Datetime when token was added to blacklist.
+    id: int | None, optional
+        Unique identifier for blacklisted token entry.
     """
 
     token: str
@@ -46,16 +55,21 @@ class BlacklistedToken:
 
 @dataclasses.dataclass
 class TokenPair:
-    """Represents a pair of access and refresh tokens.
+    """Core domain entity representing a pair of access and refresh tokens.
 
-    Attributes:
-        access_token: The JWT access token.
-        refresh_token: The JWT refresh token.
-        token_type: The type of token (default: "bearer").
-        expires_in: The lifespan of the access token in minutes (default: 30).
+    Attributes
+    ----------
+    access_token: str
+        JWT access token.
+    refresh_token: str
+        JWT refresh token.
+    token_type: str, default="bearer"
+        Type of token.
+    expires_in: int, default=30
+        Lifespan of access token in minutes.
     """
 
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    expires_in: int = 30  # minutes
+    expires_in: int = 30

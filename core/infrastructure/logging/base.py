@@ -11,18 +11,20 @@ from .format import CustomLogFormat
 
 
 class InterceptHandler(logging.Handler):
-    """Intercepts standard Python logging records and redirects them to Loguru.
+    """Intercept standard Python logging records and redirect them to Loguru.
 
-    This handler ensures that all logs from standard logging (e.g., from third-party libraries)
+    Ensures that all logs from standard logging (e.g., from third-party libraries)
     are processed by Loguru, allowing for consistent formatting, enrichment, and output.
-    It also automatically injects request context data if available.
+    Automatically injects request context data if available.
     """
 
     def emit(self, record: logging.LogRecord) -> None:
-        """Emits a log record by re-routing it to Loguru.
+        """Emit a log record by re-routing it to Loguru.
 
-        Args:
-            record: The `LogRecord` instance from the standard logging library.
+        Parameters
+        ----------
+        record: logging.LogRecord
+            `LogRecord` instance from the standard logging library.
         """
         try:
             level = logger.level(record.levelname).name
@@ -43,16 +45,16 @@ class InterceptHandler(logging.Handler):
 
 @lru_cache(maxsize=1)
 def setup_logging() -> None:
-    """Configures Loguru to handle application logging with multiple sinks.
+    """Configure Loguru to handle application logging with multiple sinks.
 
-    This function sets up console logging (stdout) and file logging,
-    including a separate file for error-level logs. It intercepts standard logging
-    and injects request context information into log records.
-    The configuration includes log level, rotation, retention, and serialization based on settings.
+    Sets up console logging (stdout) and file logging,
+    including a separate file for error-level logs. Intercept standard logging
+    and inject request context information into log records.
+    Configuration includes log level, rotation, retention, and serialization based on settings.
     """
     settings = get_settings()
 
-    logger.remove()  # Remove default Loguru handler
+    logger.remove()
 
     logging.root.handlers = [InterceptHandler()]
     logging.root.setLevel(settings.logging_level)

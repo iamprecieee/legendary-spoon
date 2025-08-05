@@ -8,16 +8,23 @@ settings = get_settings()
 
 
 class RefreshToken(SQLModel, table=True):
-    """SQLModel for storing refresh tokens.
+    """SQLModel table representation for the RefreshToken entity.
 
-    Attributes:
-        id: Primary key, auto-incrementing integer.
-        token: The unique refresh token string, indexed for quick lookups.
-        user_id: The ID of the associated user, a foreign key to the user table.
-        expires_at: The datetime when the token expires. Defaults to `refresh_token_expiry`
-                    minutes from creation.
-        is_revoked: Boolean indicating if the token has been revoked (default: False).
-        created_at: The datetime when the token was created.
+    Attributes
+    ----------
+    id: int | None, optional
+        Primary key, auto-incrementing integer.
+    token: str
+        Unique refresh token string, indexed for quick lookups.
+    user_id: int
+        ID of the associated user, a foreign key to the user table.
+    expires_at: datetime
+        Datetime when the token expires. Defaults to `refresh_token_expiry`
+        minutes from creation.
+    is_revoked: bool, default=False
+        Boolean indicating if the token has been revoked.
+    created_at: datetime
+        Datetime when the token was created.
     """
 
     id: int | None = Field(default=None, primary_key=True)
@@ -32,13 +39,18 @@ class RefreshToken(SQLModel, table=True):
 
 
 class BlacklistedToken(SQLModel, table=True):
-    """SQLModel for storing blacklisted access tokens.
+    """SQLModel table representation for the BlacklistedToken.
 
-    Attributes:
-        id: Primary key, auto-incrementing integer.
-        token: The unique blacklisted token string, indexed for quick lookups.
-        blacklisted_at: The datetime when the token was blacklisted.
-        expires_at: The original expiry datetime of the token.
+    Attributes
+    ----------
+    id: int | None, optional
+        Primary key, auto-incrementing integer.
+    token: str
+        Unique blacklisted token string, indexed for quick lookups.
+    blacklisted_at: datetime
+        Datetime when the token was blacklisted.
+    expires_at: datetime
+        Original expiry datetime of the token.
     """
 
     id: int | None = Field(default=None, primary_key=True)

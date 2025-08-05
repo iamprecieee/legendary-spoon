@@ -9,9 +9,12 @@ class StandardResponse(BaseModel):
 
     Provides a consistent structure for success, data, and optional metadata.
 
-    Attributes:
-        success: A boolean indicating if the API request was successful (default: True).
-        data: The actual response data payload (can be any type, default: None).
+    Attributes
+    ----------
+    success: bool, default=True
+        Boolean indicating if API request was successful.
+    data: Any, default=None
+        Actual response data payload.
     """
 
     success: bool = True
@@ -23,9 +26,12 @@ class SuccessResponse(StandardResponse):
 
     Inherits `success` and `data` from `StandardResponse`.
 
-    Attributes:
-        message: A descriptive success message (default: "Resource action successful").
-        status_code: The HTTP status code (default: 200 OK).
+    Attributes
+    ----------
+    message: str, default="Resource action successful"
+        Descriptive success message.
+    status_code: int, default=200
+        HTTP status code.
     """
 
     message: str = "Resource action successful"
@@ -37,9 +43,12 @@ class CreatedResponse(StandardResponse):
 
     Inherits `success` and `data` from `StandardResponse`.
 
-    Attributes:
-        message: A descriptive success message (default: "Resource creation successful").
-        status_code: The HTTP status code (default: 201 Created).
+    Attributes
+    ----------
+    message: str, default="Resource creation successful"
+        Descriptive success message.
+    status_code: int, default=201
+        HTTP status code.
     """
 
     message: str = "Resource creation successful"
@@ -51,9 +60,12 @@ class UpdatedResponse(StandardResponse):
 
     Inherits `success` and `data` from `StandardResponse`.
 
-    Attributes:
-        message: A descriptive success message (default: "Resource update successful").
-        status_code: The HTTP status code (default: 202 Accepted).
+    Attributes
+    ----------
+    message: str, default="Resource update successful"
+        Descriptive success message.
+    status_code: int, default=202
+        HTTP status code.
     """
 
     message: str = "Resource update successful"
@@ -65,9 +77,12 @@ class DeletedResponse(StandardResponse):
 
     Inherits `success` and `data` from `StandardResponse`.
 
-    Attributes:
-        message: A descriptive success message (default: "Resource deletion successful").
-        status_code: The HTTP status code (default: 204 No Content).
+    Attributes
+    ----------
+    message: str, default="Resource deletion successful"
+        Descriptive success message.
+    status_code: int, default=204
+        HTTP status code.
     """
 
     message: str = "Resource deletion successful"

@@ -1,7 +1,7 @@
 import hashlib
 import pickle
 import re
-from typing import Any, Dict, List, Pattern
+from typing import Any, Dict, List, Pattern, Tuple
 from urllib.parse import urlparse, urlunparse
 
 import msgpack
@@ -16,13 +16,12 @@ class DataSanitizer:
     """Comprehensive data sanitizer for removing/masking sensitive information
     from logs, exceptions, and other outputs.
 
-    This class defines a set of patterns and methods to identify and mask
+    Defines a set of patterns and methods to identify and mask
     sensitive data like passwords, tokens, API keys, and email addresses
     before they are logged or exposed.
     """
 
     def __init__(self):
-        """Initializes the DataSanitizer with predefined sensitive patterns and regexes."""
         self.sensitive_patterns: List[Pattern[str]] = [
             re.compile(r"password", re.IGNORECASE),
             re.compile(r"passwd", re.IGNORECASE),
@@ -51,48 +50,63 @@ class DataSanitizer:
         )
 
     def sanitize_for_logging(self, data: Any) -> Any:
-        """Sanitizes data for logging purposes.
+        """Sanitize data for logging purposes.
 
         Recursively processes input data (strings, dicts, lists) to mask
         sensitive information based on predefined patterns.
 
-        Args:
-            data: The data to be sanitized (can be string, dict, list, etc.).
+        Parameters
+        ----------
+        data: Any
+            Data to be sanitized (can be string, dict, list, etc.).
 
-        Returns:
-            The sanitized data with sensitive information masked.
+        Returns
+        -------
+        Any
+            Sanitized data with sensitive information masked.
         """
         return self._sanitize_value(data)
 
-    def sanitize_sql_for_logging(self, sql: str, params: Any) -> tuple[str, Any]:
-        """Sanitizes SQL statements and their parameters for logging.
+    def sanitize_sql_for_logging(self, sql: str, params: Any) -> Tuple[str, Any]:
+        """Sanitize SQL statements and their parameters for logging.
 
         Identifies sensitive fields in SQL parameters and masks their values.
 
-        Args:
-            sql: The SQL query string.
-            params: The parameters associated with the SQL query (can be a list or dict).
+        Parameters
+        ----------
+        sql: str
+            SQL query string.
+        params: Any
+            Parameters associated with the SQL query (can be a list or dict).
 
-        Returns:
-            A tuple containing the original SQL string and the sanitized parameters.
+        Returns
+        -------
+        Tuple[str, Any]
+            Tuple containing the original SQL string and the sanitized parameters.
         """
         return self._sanitize_sql_params(sql, params)
 
     def sanitize_exception_for_logging(self, exception: Exception) -> Exception:
-        """Sanitizes exception arguments for logging.
+        """Sanitize exception arguments for logging.
 
         Attempts to mask sensitive information within the arguments of an exception.
         If sanitization fails, returns a generic sanitized exception message.
 
-        Args:
-            exception: The exception object to sanitize.
+        Parameters
+        ----------
+        exception: Exception
+            Exception object to sanitize.
 
-        Returns:
-            A sanitized version of the exception, or a generic Exception if sanitization fails.
+        Returns
+        -------
+        Exception
+            Sanitized version of the exception, or a generic Exception if sanitization fails.
         """
         try:
             try:
                 sanitized_args = self._sanitize_exception_args(exception.args)
+                if sanitized_args == ():
+                    raise
             except Exception:
                 sanitized_args = self._sanitize_exception_args(exception)
             return sanitized_args
@@ -100,26 +114,34 @@ class DataSanitizer:
             return Exception(f"***SANITIZED*** {type(exception).__name__}")
 
     def _is_sensitive_field(self, field_name: str) -> bool:
-        """Checks if a given field name is considered sensitive.
+        """Check if a given field name is considered sensitive.
 
-        Args:
-            field_name: The name of the field to check.
+        Parameters
+        ----------
+        field_name: str
+            Name of the field to check.
 
-        Returns:
+        Returns
+        -------
+        bool
             True if the field name matches any sensitive pattern, False otherwise.
         """
         return any(pattern.search(field_name) for pattern in self.sensitive_patterns)
 
     def _mask_email(self, email: str) -> str:
-        """Masks an email address for privacy.
+        """Mask an email address for privacy.
 
         Reveals the first and last character of the local part and the full domain.
 
-        Args:
-            email: The email string to mask.
+        Parameters
+        ----------
+        email: str
+            Email string to mask.
 
-        Returns:
-            The masked email string (e.g., e****l@example.com).
+        Returns
+        -------
+        str
+            Masked email string (e.g., e****l@example.com).
         """
         if "@" in email:
             local, domain = email.split("@", 1)
@@ -131,15 +153,19 @@ class DataSanitizer:
         return "***@***.***"
 
     def _sanitize_query_params(self, query_string: str) -> str:
-        """Sanitizes query parameters in a URL string.
+        """Sanitize query parameters in a URL string.
 
         Identifies and masks sensitive query parameter values.
 
-        Args:
-            query_string: The URL query string (e.g., "param1=val1&param2=val2").
+        Parameters
+        ----------
+        query_string: str
+            URL query string (e.g., "param1=val1&param2=val2").
 
-        Returns:
-            The query string with sensitive parameter values masked.
+        Returns
+        -------
+        str
+            Query string with sensitive parameter values masked.
         """
         try:
             params = {}
@@ -162,15 +188,19 @@ class DataSanitizer:
             return "***SANITIZED_PARAMS***"
 
     def _sanitize_url_with_params(self, url: str) -> str:
-        """Sanitizes query parameters within a full URL string.
+        """Sanitize query parameters within a full URL string.
 
         Parses the URL, sanitizes its query components, and reconstructs the URL.
 
-        Args:
-            url: The full URL string to sanitize.
+        Parameters
+        ----------
+        url: str
+            Full URL string to sanitize.
 
-        Returns:
-            The URL string with sensitive query parameters masked.
+        Returns
+        -------
+        str
+            URL string with sensitive query parameters masked.
         """
         try:
             parsed = urlparse(url)
@@ -192,16 +222,21 @@ class DataSanitizer:
             return "***SANITIZED_URL***"
 
     def _sanitize_string(self, text: str, max_length: int = 1000) -> str:
-        """Sanitizes a string by masking sensitive patterns, emails, and URLs.
+        """Sanitize a string by masking sensitive patterns, emails, and URLs.
 
         Also truncates the string if it exceeds `max_length`.
 
-        Args:
-            text: The string to sanitize.
-            max_length: The maximum length of the sanitized string.
+        Parameters
+        ----------
+        text: str
+            String to sanitize.
+        max_length: int, default=1000
+            Maximum length of the sanitized string.
 
-        Returns:
-            The sanitized and potentially truncated string.
+        Returns
+        -------
+        str
+            Sanitized and potentially truncated string.
         """
         if not isinstance(text, str):
             text = str(text)
@@ -227,14 +262,19 @@ class DataSanitizer:
     def _sanitize_dict(
         self, data: Dict[str, Any], max_depth: int = 5
     ) -> Dict[str, Any]:
-        """Recursively sanitizes sensitive fields within a dictionary.
+        """Recursively sanitize sensitive fields within a dictionary.
 
-        Args:
-            data: The dictionary to sanitize.
-            max_depth: The maximum recursion depth to prevent infinite loops (default: 5).
+        Parameters
+        ----------
+        data: Dict[str, Any]
+            Dictionary to sanitize.
+        max_depth: int, default=5
+            Maximum recursion depth to prevent infinite loops.
 
-        Returns:
-            A new dictionary with sensitive values masked.
+        Returns
+        -------
+        Dict[str, Any]
+            New dictionary with sensitive values masked.
         """
         if max_depth <= 0:
             return {"<max_depth_reached>": "..."}
@@ -249,14 +289,19 @@ class DataSanitizer:
         return sanitized
 
     def _sanitize_list(self, data: List[Any], max_depth: int = 5) -> List[Any]:
-        """Recursively sanitizes sensitive values within a list.
+        """Recursively sanitize sensitive values within a list.
 
-        Args:
-            data: The list to sanitize.
-            max_depth: The maximum recursion depth (default: 5).
+        Parameters
+        ----------
+        data: List[Any]
+            List to sanitize.
+        max_depth: int, default=5
+            Maximum recursion depth.
 
-        Returns:
-            A new list with sensitive values masked. Limits processing to first 10 items.
+        Returns
+        -------
+        List[Any]
+            New list with sensitive values masked. Limits processing to first 10 items.
         """
         if max_depth <= 0:
             return ["<max_depth_reached>"]
@@ -264,14 +309,19 @@ class DataSanitizer:
         return [self._sanitize_value(item, max_depth - 1) for item in data[:10]]
 
     def _sanitize_value(self, value: Any, max_depth: int = 5) -> Any:
-        """Determines the appropriate sanitization method based on the value type.
+        """Determine the appropriate sanitization method based on the value type.
 
-        Args:
-            value: The value to sanitize.
-            max_depth: The current recursion depth limit.
+        Parameters
+        ----------
+        value: Any
+            Value to sanitize.
+        max_depth: int, default=5
+            Current recursion depth limit.
 
-        Returns:
-            The sanitized value.
+        Returns
+        -------
+        Any
+            Sanitized value.
         """
         if value is None:
             return None
@@ -286,17 +336,22 @@ class DataSanitizer:
             return self._sanitize_string(str(value))
 
     def _sanitize_sql_params(self, sql: str, params: Any) -> tuple[str, Any]:
-        """Sanitizes SQL query parameters.
+        """Sanitize SQL query parameters.
 
         Checks for sensitive patterns in parameter values and masks them.
         Specifically targets hashed passwords and long strings if sensitive fields are detected in SQL.
 
-        Args:
-            sql: The SQL query string.
-            params: The parameters associated with the SQL query.
+        Parameters
+        ----------
+        sql: str
+            SQL query string.
+        params: Any
+            Parameters associated with the SQL query.
 
-        Returns:
-            A tuple containing the original SQL string and the sanitized parameters.
+        Returns
+        -------
+        tuple[str, Any]
+            Tuple containing the original SQL string and the sanitized parameters.
         """
         sanitized_sql = sql
 
@@ -311,10 +366,8 @@ class DataSanitizer:
 
                 if isinstance(param, str):
                     if "$2b$" in param or "$argon2" in param or len(param) > 36:
-                        # Likely a hashed password or a very long string that could be sensitive
                         should_mask = True
                     elif has_sensitive_fields and len(str(param)) > 5:
-                        # If the SQL query itself contains sensitive keywords, mask longer string parameters
                         should_mask = True
 
                 if should_mask:
@@ -327,19 +380,24 @@ class DataSanitizer:
         else:
             return sanitized_sql, self._sanitize_value(params)
 
-    def _sanitize_exception_args(self, exc_args: tuple | Dict[str, Any]) -> tuple:
-        """Sanitizes arguments of an exception.
+    def _sanitize_exception_args(self, exc_args: str | tuple | Dict[str, Any]) -> tuple:
+        """Sanitize arguments of an exception.
 
         Looks for SQL parameters within exception messages and masks them.
         Recursively sanitizes other data structures within exception arguments.
 
-        Args:
-            exc_args: The arguments of the exception (can be a tuple or dictionary).
+        Parameters
+        ----------
+        exc_args: tuple | Dict[str, Any]
+            Arguments of the exception (can be a tuple or dictionary).
 
-        Returns:
-            A tuple of sanitized exception arguments.
+        Returns
+        -------
+        tuple
+            Tuple of sanitized exception arguments.
         """
         sanitized_args = []
+
         if isinstance(exc_args, tuple):
             for arg in exc_args:
                 if isinstance(arg, str):
@@ -359,8 +417,8 @@ class DataSanitizer:
                     for key, value in self._sanitize_dict(exc_args).items()
                 ]
             )
-        elif isinstance(exc_args, str):
-            sanitized_args.append(self._sanitize_string(exc_args))
+        else:
+            sanitized_args.append(self._sanitize_value(str(exc_args)))
 
         return tuple(sanitized_args)
 
@@ -368,7 +426,7 @@ class DataSanitizer:
 class RedisCacheService(CacheServiceInterface):
     """Concrete implementation of `CacheServiceInterface` using Redis as the caching backend.
 
-    This service provides methods for storing, retrieving, and deleting data from Redis,
+    Provides methods for storing, retrieving, and deleting data from Redis,
     handling serialization and deserialization of Python objects.
     """
 
@@ -385,13 +443,15 @@ class RedisCacheService(CacheServiceInterface):
         self._redis: Redis | None = None
 
     async def _get_redis(self) -> Redis:
-        """Establishes and returns an asynchronous Redis client instance.
+        """Establish and return an asynchronous Redis client instance.
 
         Ensures a single Redis client instance is used across the application
         (singleton pattern for the client).
 
-        Returns:
-            An asynchronous Redis client instance.
+        Returns
+        -------
+        Redis
+            Asynchronous Redis client instance.
         """
         if self._redis is None:
             self._redis = Redis(
@@ -413,19 +473,26 @@ class RedisCacheService(CacheServiceInterface):
 
     @staticmethod
     def get_cache_key(key_prefix: str, func_name: str, *args, **kwargs) -> str:
-        """Generates a unique cache key based on function arguments.
+        """Generate a unique cache key based on function arguments.
 
-        This function creates a consistent and unique string representation
+        Creates a consistent and unique string representation
         of the arguments passed to a cached function, which is then hashed.
 
-        Args:
-            key_prefix: String value to identify the key.
-            func_name: Name of function/method being cached.
-            *args: Positional arguments passed to the function.
-            **kwargs: Keyword arguments passed to the function.
+        Parameters
+        ----------
+        key_prefix: str
+            String value to identify the key.
+        func_name: str
+            Name of function/method being cached.
+        *args
+            Positional arguments passed to the function.
+        **kwargs
+            Keyword arguments passed to the function.
 
-        Returns:
-            A string concat of a hexadecimal MD5 hash string, prefix, and func_name representing the unique cache key.
+        Returns
+        -------
+        str
+            String concat of a hexadecimal MD5 hash string, prefix, and func_name representing the unique cache key.
         """
         key_parts = []
 
@@ -448,13 +515,17 @@ class RedisCacheService(CacheServiceInterface):
         )
 
     async def get(self, key: str) -> Any:
-        """Retrieves a value from Redis by its key.
+        """Retrieve a value from Redis by its key.
 
-        Args:
-            key: The key of the item to retrieve.
+        Parameters
+        ----------
+        key: str
+            Key of the item to retrieve.
 
-        Returns:
-            The deserialized cached value, or None if the key does not exist.
+        Returns
+        -------
+        Any
+            Deserialized cached value, or None if key does not exist.
         """
         try:
             redis_client = await self._get_redis()
@@ -468,15 +539,21 @@ class RedisCacheService(CacheServiceInterface):
             raise e
 
     async def set(self, key: str, value: Any, timeout: int | None = None) -> bool:
-        """Sets a key-value pair in Redis with an optional expiration timeout.
+        """Set a key-value pair in Redis with an optional expiration timeout.
 
-        Args:
-            key: The key for the item.
-            value: The value to be cached.
-            timeout: The expiration time in seconds. If None, uses the default cache timeout from settings.
+        Parameters
+        ----------
+        key: str
+            Key for the item.
+        value: Any
+            Value to be cached.
+        timeout: int | None, optional
+            Expiration time in seconds. If None, use the default cache timeout from settings.
 
-        Returns:
-            True if the operation was successful, False otherwise.
+        Returns
+        -------
+        bool
+
         """
         try:
             redis_client = await self._get_redis()
@@ -493,13 +570,17 @@ class RedisCacheService(CacheServiceInterface):
             raise e
 
     async def delete(self, key: str) -> bool:
-        """Deletes a key-value pair from Redis.
+        """Delete a key-value pair from Redis.
 
-        Args:
-            key: The key of the item to delete.
+        Parameters
+        ----------
+        key: str
+            Key of the item to delete.
 
-        Returns:
-            True if the item was successfully deleted, False otherwise.
+        Returns
+        -------
+        bool
+
         """
         try:
             redis_client = await self._get_redis()
@@ -510,11 +591,7 @@ class RedisCacheService(CacheServiceInterface):
             raise e
 
     async def close(self) -> None:
-        """Closes the Redis connection.
-
-        Returns:
-            True if the item was successfully deleted, False otherwise.
-        """
+        """Close the Redis connection."""
         if self._redis:
             await self._redis.aclose()
 
@@ -524,15 +601,19 @@ class RedisCacheService(CacheServiceInterface):
             self._redis = None
 
     def _serialize_value(self, value: Any) -> bytes:
-        """Serializes a Python object into bytes for storage in Redis.
+        """Serialize a Python object into bytes for storage in Redis.
 
         Attempts to use `msgpack` first, then falls back to `pickle` for complex types.
 
-        Args:
-            value: The Python object to serialize.
+        Parameters
+        ----------
+        value: Any
+            Python object to serialize.
 
-        Returns:
-            The serialized object as bytes.
+        Returns
+        -------
+        bytes
+            Serialized object as bytes.
         """
         try:
             return msgpack.packb(value, use_bin_type=True)
@@ -541,15 +622,19 @@ class RedisCacheService(CacheServiceInterface):
             return pickle.dumps(value)
 
     def _deserialize_data(self, data: bytes) -> Any:
-        """Deserializes bytes retrieved from Redis back into a Python object.
+        """Deserialize bytes retrieved from Redis back into a Python object.
 
         Attempts to use `msgpack` first, then falls back to `pickle`.
 
-        Args:
-            data: The bytes retrieved from Redis.
+        Parameters
+        ----------
+        data: bytes
+            Bytes retrieved from Redis.
 
-        Returns:
-            The deserialized Python object.
+        Returns
+        -------
+        Any
+            Deserialized Python object.
         """
         try:
             return msgpack.unpackb(data, raw=False)

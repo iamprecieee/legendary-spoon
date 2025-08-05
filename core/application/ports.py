@@ -9,50 +9,64 @@ class CacheServiceInterface(ABC):
     and deleting key-value pairs.
     """
 
-    @staticmethod
-    @abstractmethod
     def get_cache_key(*args, **kwargs) -> str:
-        """Generates a unique cache key based on function arguments.
+        """Generate a unique cache key based on function arguments.
 
-        Returns:
-            str: The key value
+        Returns
+        -------
+        str
+            Cache key.
         """
         pass
 
     @abstractmethod
     async def get(self, key: str) -> Any:
-        """Retrieves a value from the cache by its key.
+        """Retrieve a value from the cache by its key.
 
-        Args:
-            key: The unique key of the item to retrieve.
+        Parameters
+        ----------
+        key: str
+            Unique key of the item to retrieve.
 
-        Returns:
-            The cached value, or None if the key does not exist.
+        Returns
+        -------
+        Any
+            Cached value.
         """
         pass
 
     @abstractmethod
     async def set(self, key: str, value: Any, timeout: int | None = None) -> bool:
-        """Sets a key-value pair in the cache.
+        """Set a key-value pair in the cache.
 
-        Args:
-            key: The unique key for the item.
-            value: The value to be cached.
-            timeout: The expiration time in seconds (optional). If None, uses default.
+        Parameters
+        ----------
+        key: str
+            Unique key for the item.
+        value: Any
+            Value to be cached.
+        timeout: int | None, optional
+            Expiration time in seconds.
 
-        Returns:
-            True if the operation was successful, False otherwise.
+        Returns
+        -------
+        bool
+
         """
         pass
 
     @abstractmethod
     async def delete(self, key: str) -> bool:
-        """Deletes a key-value pair from the cache.
+        """Delete a key-value pair from the cache.
 
-        Args:
-            key: The key of the item to delete.
+        Parameters
+        ----------
+        key: str
+            Key of the item to delete.
 
-        Returns:
-            True if the item was successfully deleted, False otherwise.
+        Returns
+        -------
+        bool
+
         """
         pass

@@ -18,32 +18,30 @@ from ..infrastructure.models import BlacklistedToken, RefreshToken
 
 
 class RefreshTokenRepository(DomainRefreshTokenRepository):
-    """Concrete implementation of `RefreshTokenRepository` for managing refresh tokens in the database.
-
-    This repository handles the creation, retrieval, and revocation of refresh tokens,
-    mapping between domain entities and SQLModel ORM objects.
-    """
+    """Concrete implementation of `RefreshTokenRepository` for database-based refresh token management."""
 
     def __init__(self, session: AsyncSession) -> None:
-        """Initializes the RefreshTokenRepository.
-
-        Args:
-            session: The asynchronous SQLAlchemy session for database operations.
-        """
         self._session = session
 
     async def create(self, refresh_token: DomainRefreshToken) -> DomainRefreshToken:
-        """Creates a new refresh token record in the database.
+        """Create a new refresh token record in the database.
 
-        Args:
-            refresh_token: The domain `DomainRefreshToken` entity to be created.
+        Parameters
+        ----------
+        refresh_token: DomainRefreshToken
+            Domain `DomainRefreshToken` entity to be created.
 
-        Returns:
-            The created `DomainRefreshToken` entity, hydrated with database-assigned values.
+        Returns
+        -------
+        DomainRefreshToken
+            Created `DomainRefreshToken` entity, hydrated with database-assigned values.
 
-        Raises:
-            IntegrityError: If there's a database integrity violation during creation (e.g., duplicate token).
-            Exception: For other unexpected database errors.
+        Raises
+        ------
+        IntegrityError
+            If there is a database integrity violation during creation (e.g., duplicate token).
+        Exception
+            For other unexpected database errors.
         """
         refresh_token = self._to_pydantic_model(refresh_token)
 
@@ -55,7 +53,7 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
             await self._session.rollback()
             e.orig = "Failed to create refresh token"
             raise e
-        
+
         except Exception as e:
             await self._session.rollback()
             raise e
@@ -64,18 +62,22 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
 
     @cache(timeout_seconds=300, key_prefix="auth:token")
     async def get_by_token(self, token: str) -> DomainRefreshToken:
-        """Retrieves a refresh token by its string value from the database.
+        """Retrieve a refresh token by its string value from the database.
 
-        Includes logic to check if the token is revoked or expired.
+        Parameters
+        ----------
+        token: str
+            String value of the refresh token to retrieve.
 
-        Args:
-            token: The string value of the refresh token to retrieve.
+        Returns
+        -------
+        DomainRefreshToken
+            `DomainRefreshToken` entity if found and valid.
 
-        Returns:
-            The `DomainRefreshToken` entity if found and valid.
-
-        Raises:
-            HTTPException: If the token is not found, is revoked, or has expired.
+        Raises
+        ------
+        HTTPException
+            If the token is not found, is revoked, or has expired.
         """
         refresh_token_data = await self._session.execute(
             select(RefreshToken).where(
@@ -85,25 +87,30 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
             )
         )
         pydantic_refresh_token = refresh_token_data.first()
-        
+
         if not pydantic_refresh_token:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Non-existent or blacklisted refresh token",
             )
-            
+
         pydantic_refresh_token = pydantic_refresh_token[0]
         return self._to_domain_model(pydantic_refresh_token)
 
     async def revoke_token(self, token: str, user_id: int) -> None:
-        """Revokes a refresh token by marking it as revoked in the database.
+        """Revoke a refresh token by marking it as revoked in the database.
 
-        Args:
-            token: The string value of the refresh token to revoke.
-        
-        Raises:
-            HTTPException: If the token is not found.
-            Exception: For other unexpected database errors.
+        Parameters
+        ----------
+        token: str
+            String value of the refresh token to revoke.
+
+        Raises
+        ------
+        HTTPException
+            If the token is not found.
+        Exception
+            For other unexpected database errors.
         """
         refresh_token_data = await self._session.execute(
             select(RefreshToken).where(
@@ -136,13 +143,17 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
     def _to_pydantic_model(
         self, domain_refresh_token: DomainRefreshToken
     ) -> RefreshToken:
-        """Converts a domain `DomainRefreshToken` entity to a Pydantic `RefreshToken` model.
+        """Convert a domain `DomainRefreshToken` entity to a Pydantic `RefreshToken` model.
 
-        Args:
-            domain_refresh_token: The domain entity to convert.
+        Parameters
+        ----------
+        domain_refresh_token: DomainRefreshToken
+            Domain entity to convert.
 
-        Returns:
-            A Pydantic `RefreshToken` model instance.
+        Returns
+        -------
+        RefreshToken
+            Pydantic `RefreshToken` model instance.
         """
         domain_data = domain_refresh_token.__dict__.copy()
 
@@ -155,23 +166,23 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
     def _to_domain_model(
         self, pydantic_refresh_token: RefreshToken
     ) -> DomainRefreshToken:
-        """Converts a Pydantic `RefreshToken` model to a domain `DomainRefreshToken` entity.
+        """Convert a Pydantic `RefreshToken` model to a domain `DomainRefreshToken` entity.
 
-        Args:
-            pydantic_refresh_token: The Pydantic model to convert.
+        Parameters
+        ----------
+        pydantic_refresh_token: RefreshToken
+            Pydantic model to convert.
 
-        Returns:
-            A domain `DomainRefreshToken` entity instance.
+        Returns
+        -------
+        DomainRefreshToken
+            Domain `DomainRefreshToken` entity instance.
         """
         return DomainRefreshToken(**pydantic_refresh_token.model_dump())
 
 
 class BlacklistTokenRepository(DomainBlacklistTokenRepository):
-    """Concrete implementation of `BlacklistTokenRepository` for managing blacklisted tokens in the database.
-
-    This repository handles the creation of blacklisted token entries and checking
-    if a token has been blacklisted, mapping between domain entities and SQLModel ORM objects.
-    """
+    """Concrete implementation of `BlacklistTokenRepository` for managing blacklisted tokens in the database."""
 
     def __init__(self, db: AsyncSession) -> None:
         """Initializes the BlacklistTokenRepository.
@@ -182,14 +193,19 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
         self._session = db
 
     async def create(self, token: BlacklistToken) -> None:
-        """Adds an access token to the blacklist.
+        """Add an access token to the blacklist.
 
-        Args:
-            token: The domain `BlacklistToken` entity to be blacklisted.
+        Parameters
+        ----------
+        token: BlacklistToken
+            Domain `BlacklistToken` entity to be blacklisted.
 
-        Raises:
-            IntegrityError: If there's a database integrity violation during creation (e.g., duplicate token).
-            Exception: For other unexpected database errors.
+        Raises
+        ------
+        IntegrityError
+            If there is a database integrity violation during creation (e.g., duplicate token).
+        Exception
+            For other unexpected database errors.
         """
         pydantic_token = self._to_pydantic_model(token)
 
@@ -200,25 +216,32 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
             await self._session.rollback()
             e.orig = "Failed to blacklist token"
             raise e
-        
+
         except Exception as e:
             await self._session.rollback()
 
             raise e
 
-    @cache(timeout_seconds=None, key_prefix="auth:token_blacklisted")
+    @cache(timeout_seconds=300, key_prefix="auth:token_blacklisted")
     async def is_token_blacklisted(self, token: str, raise_error: bool = False) -> bool:
-        """Checks if a given token is present in the blacklist and is still active.
+        """Check if a given token is present in the blacklist and is still active.
 
-        Args:
-            token: The access token string to check.
-            raise_error: If True, raises an `HTTPException` if the token is blacklisted.
+        Parameters
+        ----------
+        token: str
+            Access token string to check.
+        raise_error: bool, default=False
+            If `True`, raises an `HTTPException` if the token is blacklisted.
 
-        Returns:
-            True if the token is blacklisted and not expired, False otherwise.
+        Returns
+        -------
+        bool
+            `True` if the token is blacklisted and not expired, `False` otherwise.
 
-        Raises:
-            HTTPException: If `raise_error` is True and the token is blacklisted.
+        Raises
+        ------
+        HTTPException
+            If `raise_error` is `True` and the token is blacklisted.
         """
         token_data = await self._session.execute(
             select(BlacklistedToken).where(
@@ -240,17 +263,20 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
     def _to_pydantic_model(
         self, domain_blacklisted_token: DomainBlacklistedToken
     ) -> BlacklistedToken:
-        """Converts a domain `DomainBlacklistedToken` entity to a Pydantic `BlacklistedToken` model.
+        """Convert a domain `DomainBlacklistedToken` entity to a Pydantic `BlacklistedToken` model.
 
-        Args:
-            domain_blacklisted_token: The domain entity to convert.
+        Parameters
+        ----------
+        domain_blacklisted_token: DomainBlacklistedToken
+            Domain entity to convert.
 
-        Returns:
-            A Pydantic `BlacklistedToken` model instance.
+        Returns
+        -------
+        BlacklistedToken
+            Pydantic `BlacklistedToken` model instance.
         """
         domain_data = domain_blacklisted_token.__dict__.copy()
 
-        # Remove fields managed by the DB or not needed for creation
         domain_data.pop("id", None)
         domain_data.pop("blacklisted_at", None)
 
@@ -259,12 +285,16 @@ class BlacklistTokenRepository(DomainBlacklistTokenRepository):
     def _to_domain_model(
         self, pydantic_blacklisted_token: BlacklistedToken
     ) -> DomainBlacklistedToken:
-        """Converts a Pydantic `BlacklistedToken` model to a domain `DomainBlacklistedToken` entity.
+        """Convert a Pydantic `BlacklistedToken` model to a domain `DomainBlacklistedToken` entity.
 
-        Args:
-            pydantic_blacklisted_token: The Pydantic model to convert.
+        Parameters
+        ----------
+        pydantic_blacklisted_token: BlacklistedToken
+            Pydantic model to convert.
 
-        Returns:
-            A domain `DomainBlacklistedToken` entity instance.
+        Returns
+        -------
+        DomainBlacklistedToken
+            Domain `DomainBlacklistedToken` entity instance.
         """
         return DomainBlacklistedToken(**pydantic_blacklisted_token.model_dump())

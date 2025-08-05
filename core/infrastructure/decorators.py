@@ -9,21 +9,28 @@ from .factory import get_data_sanitizer, get_redis_cache_service
 def cache(
     timeout_seconds: int | None, key_prefix: str = "", *args, **kwargs
 ) -> Callable[[Callable], Callable]:
-    """A decorator for caching the results of asynchronous functions.
+    """Decorator for caching the results of asynchronous functions.
 
-    The cache key is generated based on the function's arguments.
-    If a result is found in the cache, it's returned immediately.
-    Otherwise, the function is executed, its result is cached, and then returned.
+    Cache key is generated based on the function's arguments.
+    If a result is found in the cache, return it immediately.
+    Otherwise, execute the function, cache its result, and then return it.
 
-    Args:
-        timeout_seconds: The time in seconds before the cached item expires.
-                         If None, the item does not expire (or uses a default cache setting).
-        key_prefix: An optional prefix to add to the generated cache key for categorization.
-        *args: Positional arguments passed to the decorator (not directly used for cache key).
-        **kwargs: Keyword arguments passed to the decorator (not directly used for cache key).
+    Parameters
+    ----------
+    timeout_seconds: int | None, optional
+        Time in seconds before the cached item expires.
+        If None, item does not expire (or uses a default cache setting).
+    key_prefix: str, default=""
+        Optional prefix to add to the generated cache key for categorization.
+    *args
+        Positional arguments passed to the decorator.
+    **kwargs
+        Keyword arguments passed to the decorator.
 
-    Returns:
-        A decorator that can be applied to an asynchronous function.
+    Returns
+    -------
+    Callable[[Callable], Callable]
+        Decorator that can be applied to an asynchronous function.
     """
 
     def decorator(func: Callable) -> Callable:
@@ -52,7 +59,7 @@ def cache(
                 return result
 
             except Exception as e:
-                exc_msg = sanitizer.sanitize_for_logging(e)
+                exc_msg = sanitizer.sanitize_exception_for_logging(e)
                 logger.error(f"🔴 Cache ERROR: {exc_msg}")
                 return await func(*args, **kwargs)
 

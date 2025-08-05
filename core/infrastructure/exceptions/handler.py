@@ -14,16 +14,20 @@ from ..factory import get_data_sanitizer
 
 
 def normalize_error_detail(detail: Any) -> str | List[str] | Dict[str, Any]:
-    """Normalizes the error detail to a string, list of strings, or dictionary for consistent API responses.
+    """Normalize the error detail to a string, list of strings, or dictionary for consistent API responses.
 
-    This function processes various formats of error details (e.g., from Pydantic validation errors)
+    Processes various formats of error details (e.g., from Pydantic validation errors)
     and converts them into a standardized format suitable for API responses.
 
-    Args:
-        detail: The raw error detail, which can be a string, dictionary, or list.
+    Parameters
+    ----------
+    detail: Any
+        Raw error detail, which can be a string, dictionary, or list.
 
-    Returns:
-        A normalized representation of the error detail: a string, a list of strings,
+    Returns
+    -------
+    str | List[str] | Dict[str, Any]
+        Normalized representation of the error detail: a string, a list of strings,
         or a dictionary, depending on the input type and content.
     """
     if isinstance(detail, str):
@@ -32,7 +36,6 @@ def normalize_error_detail(detail: Any) -> str | List[str] | Dict[str, Any]:
     if isinstance(detail, dict):
         normalized = ""
         for key, value in detail.items():
-            # If value is iterable (but not a string), handle as list
             if hasattr(value, "__iter__") and not isinstance(value, str):
                 if len(value) == 1:
                     normalized = str(value[0])
@@ -51,16 +54,21 @@ def normalize_error_detail(detail: Any) -> str | List[str] | Dict[str, Any]:
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler for the FastAPI application.
 
-    This handler catches various types of exceptions (e.g., ValueError, SQLAlchemyError,
+    Catches various types of exceptions (e.g., ValueError, SQLAlchemyError,
     HTTPException, ValidationError) and returns a consistent JSON response format.
-    It also sanitizes sensitive information before logging.
+    Also sanitizes sensitive information before logging.
 
-    Args:
-        request: The incoming FastAPI request object.
-        exc: The exception that was caught.
+    Parameters
+    ----------
+    request: Request
+        Incoming FastAPI request object.
+    exc: Exception
+        Exception that was caught.
 
-    Returns:
-        A `JSONResponse` object with a standardized error format and appropriate HTTP status code.
+    Returns
+    -------
+    JSONResponse
+        `JSONResponse` object with a standardized error format and appropriate HTTP status code.
     """
     exc_type = type(exc).__name__
     sanitizer = await get_data_sanitizer()
@@ -180,7 +188,6 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         )
         return JSONResponse(status_code=exc.status_code, content=custom_response_data)
 
-    # For all other unhandled exceptions, log and return a generic 500 error
     tb = traceback.extract_tb(exc.__traceback__)
     if tb:
         last_frame = tb[-1]

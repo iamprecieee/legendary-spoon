@@ -9,12 +9,16 @@ from .repositories import UserRepository
 async def get_user_repository(
     session: AsyncSession = Depends(get_database_session),
 ) -> UserRepository:
-    """Provides a `UserRepository` instance.
+    """Provide a `UserRepository` instance.
 
-    Args:
-        session: An asynchronous SQLAlchemy database session, injected as a dependency.
+    Parameters
+    ----------
+    session: AsyncSession
+        Asynchronous SQLAlchemy database session, injected as a dependency.
 
-    Returns:
-        An instance of `UserRepository`.
+    Returns
+    -------
+    UserRepository
+        Instance of `UserRepository`.
     """
     return UserRepository(session)

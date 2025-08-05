@@ -6,13 +6,21 @@ from core.infrastructure.logging import RequestTrackingMiddleware, setup_logging
 
 
 def create_app():
-    """Creates and configures the FastAPI application instance.
+    """Create and configure FastAPI application instance
 
-    This function sets up the application lifespan events (startup/shutdown),
-    adds middleware, registers global exception handlers, and includes API routers.
+    Sets up application lifespan events, middleware, exception handlers,
+    and API routers.
 
-    Returns:
-        A configured FastAPI application instance.
+    Returns
+    -------
+    FastAPI
+        Deployment-ready FastAPI instance.
+
+    Raises
+    ------
+    Exception
+        If exception occurs in lifespan or API routers.
+
     """
     from contextlib import asynccontextmanager
 
@@ -31,59 +39,71 @@ def create_app():
 
     @asynccontextmanager
     async def custom_lifespan(app):
-        """Asynchronous context manager for managing application startup and shutdown events.
+        """Manage application startup and shutdown lifecycle.
 
-        During startup, it sets up logging, creates non-existent database tables, and runs migrations.
-        During shutdown, it logs an application shutdown message.
+        Handles application logging setup, database and redis connection initialization,
+        and proper cleanup during shutdown to prevent resource leaks.
 
-        Args:
-            app: The FastAPI application instance.
+        Parameters
+        ----------
+        app : FastAPI
+            FastAPI application instance.
 
-        Yields:
-            None, after startup tasks are complete and before shutdown tasks begin.
+        Yields
+        ------
+        None
+            Control to application before after startup, and before shutdown.
 
-        Raises:
-            Exception: If database migration or table creation fails during startup.
+        Raises
+        ------
+        Exception
+            If database table creation or migration, or Redis connection fails.
+            If database or Redis shutdown fails.
         """
         setup_logging()
 
         try:
-            logger.info("🔧 Creating non-existent database tables 🔧")
+            logger.debug("🔧 Creating non-existent database tables...")
             await create_tables()
 
-            logger.info("🔧 Running database migrations 🔧")
+            logger.debug("🔧 Running unapplied database migrations...")
             await run_migrations()
 
         except Exception as e:
             logger.error(f"📝 Migration or table creation failed: {e}")
             raise e
 
-        logger.info("🔧 Initializing Redis connection 🔧")
-        redis_service = await get_redis_cache_service()
-        redis_client = await redis_service._get_redis()
-        ping_result = await redis_client.ping()
-        logger.info(f"✅ Redis pinged: {ping_result} ✅")
+        try:
+            logger.debug("🔧 Initializing Redis connection...")
+            redis_service = await get_redis_cache_service()
+            redis_client = await redis_service._get_redis()
+            ping_result = await redis_client.ping()
+            logger.info(f"🟢 Redis pinged: <green>{ping_result}</green>.")
 
-        logger.info("✅ Application startup completed ✅")
-        logger.info("🚀✨ Legendary Spoon is now running! ✨🚀")
+        except Exception as e:
+            logger.error(f"🔴 Redis connection failed: {e}")
+            raise e
+
+        logger.info("🟢 Application startup completed.")
+        logger.info("🚀✨ <green>Legendary Spoon is now running!</green>")
 
         yield
 
-        logger.info("🔧 Starting shutdown cleanup 🔧")
+        logger.debug("🔧 Starting shutdown cleanup...")
 
         try:
-            logger.info("🔧 Closing Redis connection 🔧")
-            await close_redis_cache_service()  # Use the factory's close method
+            logger.debug("🔧 Closing Redis connection...")
+            await close_redis_cache_service()
         except Exception as e:
-            logger.error(f"❌ Error closing Redis: {e}")
+            logger.error(f"🟠 Error closing Redis: {e}")
 
         try:
             logger.info("🔧 Closing database connections 🔧")
             await close_database_engine()
         except Exception as e:
-            logger.error(f"❌ Error closing database: {e}")
+            logger.error(f"🟠 Error closing database: {e}")
 
-        logger.info("👋 Application shutting down...")
+        logger.debug("👋 Application shutting down...")
 
     app = FastAPI(lifespan=custom_lifespan)
 
@@ -112,18 +132,15 @@ def create_app():
 
 
 if __name__ == "__main__":
-    """Entry point for running the FastAPI application using Uvicorn.
+    """Application entry point for direct execution.
 
-    Configures logging and starts the Uvicorn server with specified host, port,
-    reload settings, and SSL configurations.
+    Configures logging with Loguru and starts Uvicorn server with SSL support.
     """
     setup_logging()
     settings = get_settings()
-    logger.info(
-        f"🚀✨ Starting Legendary Spoon in '{settings.environment.upper()}' mode! ✨🚀"
+    logger.debug(
+        f"🟢 Starting Legendary Spoon in '{settings.environment.upper()}' mode!"
     )
-    logger.info(f"🎨 Logging Level: {settings.logging_level.upper()} 🎨")
-    logger.info("🔧 Configuring Uvicorn server with custom settings 🔧")
     uvicorn.run(
         "main:create_app",
         port=8001,

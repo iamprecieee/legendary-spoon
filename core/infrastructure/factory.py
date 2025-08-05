@@ -7,10 +7,12 @@ _redis_cache_service = None
 
 
 async def get_data_sanitizer() -> DataSanitizer:
-    """Provides a singleton `DataSanitizer` instance.
+    """Provide a singleton `DataSanitizer` instance.
 
-    Returns:
-        An instance of `DataSanitizer`.
+    Returns
+    -------
+    DataSanitizer
+        Instance of `DataSanitizer`.
     """
     global _data_sanitizer
 
@@ -21,12 +23,12 @@ async def get_data_sanitizer() -> DataSanitizer:
 
 
 async def get_redis_cache_service() -> RedisCacheService:
-    """Provides a singleton `RedisCacheService` instance.
+    """Provide a singleton `RedisCacheService` instance.
 
-    The service is initialized with Redis connection settings from the application settings.
-
-    Returns:
-        An instance of `RedisCacheService`.
+    Returns
+    -------
+    RedisCacheService
+        Instance of `RedisCacheService`.
     """
     global _redis_cache_service
 
@@ -38,7 +40,7 @@ async def get_redis_cache_service() -> RedisCacheService:
 
 
 async def close_redis_cache_service():
-    """Properly close the singleton Redis cache service."""
+    """Close the singleton Redis cache service properly."""
     global _redis_cache_service
 
     if _redis_cache_service:

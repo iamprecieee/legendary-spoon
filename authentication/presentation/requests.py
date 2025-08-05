@@ -4,9 +4,12 @@ from pydantic import BaseModel
 class UserCreateRequest(BaseModel):
     """Request model for new user registration.
 
-    Attributes:
-        email: The user's email address.
-        password: The user's chosen password.
+    Attributes
+    ----------
+    email: str
+        User's email address.
+    password: str
+        User's chosen password.
     """
 
     email: str
@@ -16,7 +19,7 @@ class UserCreateRequest(BaseModel):
 class UserLoginRequest(UserCreateRequest):
     """Request model for user login.
 
-    Inherits email and password fields from `UserCreateRequest`.
+    Inherit email and password fields from `UserCreateRequest`.
     """
 
     pass
@@ -25,8 +28,10 @@ class UserLoginRequest(UserCreateRequest):
 class RefreshRequest(BaseModel):
     """Request model for refreshing an access token.
 
-    Attributes:
-        refresh_token: The refresh token used to obtain a new access token.
+    Attributes
+    ----------
+    refresh_token: str
+        Refresh token used to obtain a new access token.
     """
 
     refresh_token: str
@@ -35,8 +40,10 @@ class RefreshRequest(BaseModel):
 class LogoutRequest(BaseModel):
     """Request model for user logout.
 
-    Attributes:
-        refresh_token: The refresh token to be revoked during logout.
+    Attributes
+    ----------
+    refresh_token: str
+        Refresh token to be revoked during logout.
     """
 
     refresh_token: str

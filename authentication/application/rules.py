@@ -16,11 +16,7 @@ from .ports import (
 
 
 class CreateUserRule:
-    """Encapsulates the business logic for creating a new user.
-
-    This rule handles the process of hashing the user's password
-    and persisting the new user to the database.
-    """
+    """Business logic for creating a new user."""
 
     def __init__(
         self,
@@ -29,26 +25,18 @@ class CreateUserRule:
         user_repository: UserRepository,
         password_service: PasswordServiceInterface,
     ) -> None:
-        """Initializes the CreateUserRule.
-
-        Args:
-            email: The email address of the user to be created.
-            password: The plain-text password for the new user.
-            user_repository: An instance of `UserRepository` for database operations.
-            password_service: An instance of `PasswordServiceInterface` for password hashing.
-        """
         self.email = email
         self.password = password
         self.user_repository = user_repository
         self.password_service = password_service
 
     async def execute(self) -> DomainUser:
-        """Executes the user creation process.
+        """Execute the user creation process.
 
-        Hashes the provided password and saves the new user to the database.
-
-        Returns:
-            The `DomainUser` entity of the newly created user.
+        Returns
+        -------
+        DomainUser
+            `DomainUser` entity of newly created user.
         """
         hashed_password = await self.password_service.hash_password(self.password)
         created_user = await self.user_repository.create(
@@ -58,11 +46,7 @@ class CreateUserRule:
 
 
 class AuthenticateUserRule:
-    """Encapsulates the business logic for authenticating an existing user.
-
-    This rule checks if the provided credentials match an existing user
-    in the database.
-    """
+    """Business logic for authenticating an existing user."""
 
     def __init__(
         self,
@@ -71,27 +55,18 @@ class AuthenticateUserRule:
         user_repository: UserRepository,
         password_service: PasswordServiceInterface,
     ) -> None:
-        """Initializes the AuthenticateUserRule.
-
-        Args:
-            email: The email address of the user attempting to authenticate.
-            password: The plain-text password provided by the user.
-            user_repository: An instance of `UserRepository` for database operations.
-            password_service: An instance of `PasswordServiceInterface` for password checking.
-        """
         self.email = email
         self.password = password
         self.user_repository = user_repository
         self.password_service = password_service
 
     async def execute(self) -> DomainUser:
-        """Executes the user authentication process.
+        """Execute the user authentication process.
 
-        Retrieves the user by email and verifies the provided password
-        against the stored hashed password.
-
-        Returns:
-            The `DomainUser` entity if authentication is successful.
+        Returns
+        -------
+        DomainUser
+            `DomainUser` entity if authentication is successful.
         """
         existing_user = await self.user_repository.get_by_email(self.email)
         await self.password_service.check_password(
@@ -101,9 +76,9 @@ class AuthenticateUserRule:
 
 
 class LoginUserRule(AuthenticateUserRule):
-    """Encapsulates the business logic for logging in a user.
+    """Business logic for logging in a user.
 
-    Extends `AuthenticateUserRule` to also handle the creation and storage
+    Extends `AuthenticateUserRule` to also handle creation and storage
     of access and refresh tokens upon successful authentication.
     """
 
@@ -116,16 +91,6 @@ class LoginUserRule(AuthenticateUserRule):
         token_service: JWTTokenServiceInterface,
         refresh_token_repository: RefreshTokenRepository,
     ) -> None:
-        """Initializes the LoginUserRule.
-
-        Args:
-            email: The email address of the user attempting to log in.
-            password: The plain-text password provided by the user.
-            user_repository: An instance of `UserRepository` for database operations.
-            password_service: An instance of `PasswordServiceInterface` for password checking.
-            token_service: An instance of `JWTTokenServiceInterface` for token creation.
-            refresh_token_repository: An instance of `RefreshTokenRepository` for storing refresh tokens.
-        """
         super().__init__(
             email=email,
             password=password,
@@ -136,16 +101,17 @@ class LoginUserRule(AuthenticateUserRule):
         self.refresh_token_repository = refresh_token_repository
 
     async def execute(self) -> Tuple[DomainUser, TokenPair]:
-        """Executes the user login process.
+        """Execute the user login process.
 
-        Authenticates the user, creates access and refresh tokens,
-        stores the refresh token, and returns both the user and token pair.
+        Returns
+        -------
+        Tuple[DomainUser, TokenPair]
+            Tuple containing `DomainUser` entity and `TokenPair`.
 
-        Returns:
-            A tuple containing the `DomainUser` entity and a `TokenPair`.
-
-        Raises:
-            Exception: If authentication fails (inherited from AuthenticateUserRule).
+        Raises
+        ------
+        Exception
+            If authentication fails (inherited from AuthenticateUserRule).
         """
         existing_user = await super().execute()
         access_token = await self.token_service.create_access_token(existing_user)
@@ -160,10 +126,7 @@ class LoginUserRule(AuthenticateUserRule):
 
 
 class CurrentUserRule:
-    """Encapsulates the business logic for retrieving the current authenticated user.
-
-    This rule decodes an access token to identify and fetch the corresponding user.
-    """
+    """Business logic for retrieving current authenticated user."""
 
     def __init__(
         self,
@@ -171,28 +134,22 @@ class CurrentUserRule:
         token_service: JWTTokenServiceInterface,
         user_repository: UserRepository,
     ) -> None:
-        """Initializes the CurrentUserRule.
-
-        Args:
-            token: The access token of the current user.
-            token_service: An instance of `JWTTokenServiceInterface` for token decoding.
-            user_repository: An instance of `UserRepository` for fetching user details.
-        """
         self.token = token
         self.token_service = token_service
         self.user_repository = user_repository
 
     async def execute(self) -> DomainUser:
-        """Executes the current user retrieval process.
+        """Execute the current user retrieval process.
 
-        Decodes the access token, extracts the user ID, and fetches
-        the user from the repository.
+        Returns
+        -------
+        DomainUser
+            `DomainUser` entity corresponding to access token.
 
-        Returns:
-            The `DomainUser` entity corresponding to the access token.
-
-        Raises:
-            HTTPException: If the token is invalid or the user is not found.
+        Raises
+        ------
+        HTTPException
+            If token is invalid or user is not found.
         """
         decoded_jwt_data = await self.token_service.decode_access_token(self.token)
         existing_user = await self.user_repository.get_by_id(decoded_jwt_data.id)
@@ -200,11 +157,7 @@ class CurrentUserRule:
 
 
 class RefreshTokenRule:
-    """Encapsulates the business logic for refreshing access and refresh tokens.
-
-    This rule handles the process of validating an old refresh token,
-    generating new tokens, revoking the old refresh token, and storing the new one.
-    """
+    """Business logic for refreshing access and refresh tokens."""
 
     def __init__(
         self,
@@ -214,14 +167,6 @@ class RefreshTokenRule:
         token_service: JWTTokenServiceInterface,
         refresh_token_repository: RefreshTokenRepository,
     ) -> None:
-        """Initializes the RefreshTokenRule.
-
-        Args:
-            refresh_token: The old refresh token string.
-            user: An instance of `DomainUser` containing user details.
-            token_service: An instance of `JWTTokenServiceInterface` for token creation and decoding.
-            refresh_token_repository: An instance of `RefreshTokenRepository` for managing refresh tokens.
-        """
         self.refresh_token = refresh_token
         self.user = user
         self.cache_service = cache_service
@@ -229,26 +174,28 @@ class RefreshTokenRule:
         self.refresh_token_repository = refresh_token_repository
 
     async def execute(self) -> Tuple[DomainUser, TokenPair]:
-        """Executes the token refresh process.
+        """Execute the token refresh process.
 
-        Decodes and validates the refresh token, generates new access and refresh tokens,
-        revokes the old refresh token, stores the new one, and returns the user and new token pair.
+        Decodes and validates refresh token, generates new access and refresh tokens,
+        revokes old refresh token, stores new one, and returns user and new token pair.
+        Also updates cached refresh token retrieval data.
 
-        Returns:
-            A tuple containing the `DomainUser` entity and the new `TokenPair`.
+        Returns
+        -------
+        Tuple[DomainUser, TokenPair]
+            Tuple containing `DomainUser` entity and new `TokenPair`.
 
-        Raises:
-            HTTPException: If the refresh token is invalid or expired, or user not found.
+        Raises
+        ------
+        HTTPException
+            If refresh token is invalid or expired, or user not found.
         """
         await self.token_service.decode_refresh_token(self.refresh_token)
-
-        # Ensure the refresh token exists and is valid
         await self.refresh_token_repository.get_by_token(self.refresh_token)
 
         new_access_token = await self.token_service.create_access_token(self.user)
         new_refresh_token = await self.token_service.create_refresh_token(self.user)
 
-        # Revoke the old refresh token
         await self.refresh_token_repository.revoke_token(
             self.refresh_token, self.user.id
         )
@@ -259,10 +206,8 @@ class RefreshTokenRule:
             self,  # will get skipped
             self.refresh_token,
         )
-
         await self.cache_service.delete(cache_key)
 
-        # Store the new refresh token
         new_refresh_token_entity = RefreshToken(
             token=new_refresh_token,
             user_id=self.user.id,
@@ -276,10 +221,7 @@ class RefreshTokenRule:
 
 
 class LogoutRule:
-    """Encapsulates the business logic for logging out a user.
-
-    This rule blacklists the access token and revokes the refresh token (if provided).
-    """
+    """Business logic for logging out a user."""
 
     def __init__(
         self,
@@ -291,16 +233,6 @@ class LogoutRule:
         blacklist_token_repository: BlacklistTokenRepository,
         refresh_token_repository: RefreshTokenRepository,
     ) -> None:
-        """Initializes the LogoutRule.
-
-        Args:
-            user_id: The id of the authenticated user.
-            access_token: The access token to be blacklisted.
-            refresh_token: The refresh token to be revoked (optional).
-            token_service: An instance of `JWTTokenServiceInterface` for token decoding.
-            blacklist_token_repository: An instance of `BlacklistTokenRepository` for blacklisting access tokens.
-            refresh_token_repository: An instance of `RefreshTokenRepository` for revoking refresh tokens.
-        """
         self.user_id = user_id
         self.access_token = access_token
         self.refresh_token = refresh_token
@@ -310,9 +242,10 @@ class LogoutRule:
         self.refresh_token_repository = refresh_token_repository
 
     async def execute(self) -> None:
-        """Executes the user logout process.
+        """Execute the user logout process.
 
-        Blacklists the provided access token and revokes the refresh token (if present).
+        Blacklists provided access token and revokes refresh token (if present).
+        Also updates cached refresh token retrieval data.
         """
         decoded_jwt_data = await self.token_service.decode_jwt_token(self.access_token)
         await self.blacklist_token_repository.create(
@@ -325,7 +258,7 @@ class LogoutRule:
             await self.refresh_token_repository.revoke_token(
                 self.refresh_token, self.user_id
             )
-            
+
             cache_key = self.cache_service.get_cache_key(
                 "auth:token",
                 "authentication.infrastructure.repositories.RefreshTokenRepository.get_by_token",
@@ -336,41 +269,30 @@ class LogoutRule:
 
 
 class OAuthLoginRule:
-    """Encapsulates the business logic for initiating an OAuth login flow.
-
-    This rule generates an authorization URL for an OAuth provider.
-    """
+    """Business logic for initiating an OAuth login flow."""
 
     def __init__(
         self,
         oauth_service: OAuthServiceInterface,
     ) -> None:
-        """Initializes the OAuthLoginRule.
-
-        Args:
-            oauth_service: An instance of `OAuthServiceInterface` for generating authorization URLs.
-        """
         self.oauth_service = oauth_service
 
     def execute(self) -> str:
-        """Executes the OAuth login initiation process.
+        """Execute the OAuth login initiation process.
 
-        Generates a unique state and constructs the authorization URL for the OAuth provider.
+        Generates a unique state and constructs authorization URL for OAuth provider.
 
-        Returns:
-            The authorization URL string.
+        Returns
+        -------
+        str
+            Authorization URL string.
         """
         state = secrets.token_urlsafe(32)
         return self.oauth_service.get_authorization_url(state)
 
 
 class OAuthCallbackRule:
-    """Encapsulates the business logic for handling the OAuth callback.
-
-    This rule processes the authorization code, exchanges it for tokens,
-    fetches user information, and either creates a new user or links an existing one.
-    It also handles token generation and storage.
-    """
+    """Business logic for handling the OAuth callback."""
 
     def __init__(
         self,
@@ -382,16 +304,6 @@ class OAuthCallbackRule:
         refresh_token_repository: RefreshTokenRepository,
         password_service: PasswordServiceInterface,
     ) -> None:
-        """Initializes the OAuthCallbackRule.
-
-        Args:
-            auth_code: The authorization code received from the OAuth provider.
-            oauth_service: An instance of `OAuthServiceInterface` for OAuth operations.
-            user_repository: An instance of `UserRepository` for user management.
-            token_service: An instance of `JWTTokenServiceInterface` for token creation.
-            refresh_token_repository: An instance of `RefreshTokenRepository` for storing refresh tokens.
-            password_service: An instance of `PasswordServiceInterface` for password hashing.
-        """
         self.auth_code = auth_code
         self.cache_service = cache_service
         self.oauth_service = oauth_service
@@ -401,19 +313,28 @@ class OAuthCallbackRule:
         self.password_service = password_service
 
     async def execute(self) -> Tuple[DomainUser, TokenPair, bool]:
-        """Executes the OAuth callback processing.
+        """Execute the OAuth callback processing.
 
-        Exchanges the authorization code for tokens, fetches user info,
-        creates or links the user, generates new access and refresh tokens,
-        stores the refresh token, and returns the user, token pair, and a boolean
-        indicating if a new user was created.
+        - Exchanges authorization code for tokens
+        - Fetches user info,
+        - Creates or links user
+        - Generates new access and refresh tokens
+        - Stores refresh token
+        - Returns user, token pair, and a boolean indicating new user creation.
 
-        Returns:
-            A tuple containing the `DomainUser` entity, a `TokenPair`,
-            and a boolean (`is_new_user`) indicating if a new user was created.
+        Creates new user with a random password if no user with provided email exists.
+        Also updates cached user retrieval data.
 
-        Raises:
-            HTTPException: If OAuth flow fails or user information cannot be retrieved.
+        Returns
+        -------
+        Tuple[DomainUser, TokenPair, bool]
+            Tuple containing `DomainUser` entity, `TokenPair`,
+            and boolean (`is_new_user`) indicating if a new user was created.
+
+        Raises
+        ------
+        HTTPException
+            If OAuth flow fails or user information cannot be retrieved.
         """
         token_data = await self.oauth_service.exchange_auth_code(self.auth_code)
         access_token = token_data.get("access_token")
@@ -440,20 +361,18 @@ class OAuthCallbackRule:
                 cache_key_email = self.cache_service.get_cache_key(
                     "user:email",
                     "users.infrastructure.repositories.UserRepository.get_by_email",
-                    self,  # Will get ignored
+                    self,  # will get skipped
                     social_user.email,
                 )
                 cache_key_id = self.cache_service.get_cache_key(
                     "user:id",
                     "users.infrastructure.repositories.UserRepository.get_by_id",
-                    self,  # Will get ignored
+                    self,  # will get skipped
                     social_user.id,
                 )
                 await self.cache_service.set(cache_key_email, social_user, 300)
                 await self.cache_service.set(cache_key_id, social_user, 300)
             except Exception:
-                # If user with this email exists but no social account linked, create new user
-                # with a random password since it's an OAuth flow
                 random_password = secrets.token_urlsafe(16) + "0Zz@"
                 hashed_random_password = await self.password_service.hash_password(
                     random_password
@@ -468,7 +387,6 @@ class OAuthCallbackRule:
         access_token = await self.token_service.create_access_token(social_user)
         refresh_token = await self.token_service.create_refresh_token(social_user)
 
-        # Store the refresh token in the repository
         refresh_token_entity = RefreshToken(
             token=refresh_token,
             user_id=social_user.id,

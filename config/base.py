@@ -5,54 +5,94 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables and .env file.
+    """Application configuration settings with environment variable integration.
 
-    Attributes:
-        access_token_expiry (int): Access token lifetime in minutes.
-        algorithm (str): JWT signing algorithm.
-        cache_timeout_seconds (int | None): Default cache entry timeout in seconds (default: 1800).
-        debug (bool): Enable/disable debug mode.
-        expires_delta (int): Token expiration delta in minutes.
-        logging_level (str): Logging verbosity (e.g., "INFO", "DEBUG").
-        refresh_token_expiry (int): Refresh token lifetime in days.
-        base_dir (Path): Project base directory (auto-detected).
-        environment (str): Application environment ("development", "production", etc.).
-        google_client_id (str): Google OAuth client ID.
-        google_client_secret (str): Google OAuth client secret.
-        google_redirect_uri (str): Google OAuth redirect URI.
-        google_token_url (str): Google OAuth token exchange endpoint.
-        google_user_info_url (str): Google OAuth user info endpoint.
-        min_password_length (int): Minimum password length for users (default: 8).
-        logs_dir (Path): Directory for log files (derived from base_dir).
-        log_file (Path): Main log file path (derived from logs_dir).
-        private_key_password (str | None): Password for RSA private key encryption (optional).
-        private_key_path (Path | None): Path to the RSA private key for JWT signing (optional).
-        public_key_path (Path | None): Path to the RSA public key for JWT verification (optional).
-        redis_host (str): Redis server hostname.
-        redis_port (int): Redis server port.
-        redis_db (int): Redis database index.
-        redis_password (str | None): Redis password (optional).
-        redis_socket_connect_timeout (int): Redis socket connect timeout (seconds).
-        redis_socket_timeout (int): Redis socket read/write timeout (seconds).
-        redis_use_ssl (bool): Use SSL for Redis connection.
-        secret_key (str | None): Key for JWT signing/verification (optional).
-        ssl_cert_reqs (str | None): SSL certificate requirements for Redis (optional).
-        ssl_certfile_path (Path | None): Path to SSL certificate for Uvicorn (optional).
-        ssl_keyfile_path (Path | None): Path to SSL key for Uvicorn (optional).
+    Attributes
+    ----------
+    access_token_expiry: int
+        Access token lifetime in minutes.
+    algorithm: str
+        JWT signing algorithm.
+    cache_timeout_seconds: int | None, default=1800
+        Default cache entry timeout in seconds.
+    debug: bool
+        Enable/disable debug mode.
+    expires_delta: int
+        Token expiration delta in minutes.
+    logging_level: str
+        Logging verbosity: e.g., "INFO", "DEBUG".
+    refresh_token_expiry: int
+        Refresh token lifetime in days.
+    secret_key: str
+        Key for JWT signing/verification and password-hashing.
+    base_dir: Path, default=auto-detected
+        Project base directory.
+    environment: str, default="development"
+        Application environment: "development", "production", etc.
+    google_client_id: str, default=""
+        Google OAuth client ID.
+    google_client_secret: str, default=""
+        Google OAuth client secret.
+    google_redirect_uri: str, default=""
+        Google OAuth redirect URI.
+    google_token_url: str, default=""
+        Google OAuth token exchange endpoint.
+    google_user_info_url: str, default=""
+        Google OAuth user info endpoint.
+    min_password_length: int, default=8
+        Minimum password length for users.
+    logs_dir: Path, derived from base_dir
+        Directory for log files.
+    log_file: Path, derived from base_dir
+        Main log file path.
+    private_key_password: str | None, optional
+        Password for RSA private key encryption.
+    private_key_path: Path | None, optional
+        Path to the RSA private key for JWT signing.
+    public_key_path: Path | None, optional
+        Path to the RSA public key for JWT verification.
+    redis_host: str, default="localhost"
+        Redis server hostname.
+    redis_port: int, default=6379
+        Redis server port.
+    redis_db: int, default=0
+        Redis database index.
+    redis_password: str | None, optional
+        Redis password.
+    redis_socket_connect_timeout: int, default=5
+        Redis socket connect timeout in seconds.
+    redis_socket_timeout: int, default=5
+        Redis socket read/write timeout in seconds.
+    redis_use_ssl: bool, default=False
+        Use SSL for Redis connection.
+    ssl_cert_reqs: str | None, optional
+        SSL certificate requirements for Redis.
+    ssl_certfile_path: Path | None, optional
+        Path to SSL certificate for Uvicorn.
+    ssl_keyfile_path: Path | None, optional
+        Path to SSL key for Uvicorn.
 
-    Notes:
-        - All settings can be configured via environment variables or a `.env` file.
-        - Paths are resolved relative to the project root.
-        - Directories and files for logging and SSL are created/touched if missing.
+    Raises
+    ------
+    ValueError
+        If required configuration values are missing or invalid.
+
+    Notes
+    -----
+    Paths are resolved relative to the project root.
+    Sensitive configuration values like secret keys, passwords, and private keys
+    should always be provided via environment variables or secure secret management
+    systems, never committed to version control or hardcoded in source files.
     """
 
-    access_token_expiry: int  # minutes
+    access_token_expiry: int
     algorithm: str
     cache_timeout_seconds: int | None = 1800
     debug: bool
-    expires_delta: int  # minutes
+    expires_delta: int
     logging_level: str
-    refresh_token_expiry: int  # days
+    refresh_token_expiry: int
+    secret_key: str
     base_dir: Path = Path(__file__).resolve().parent.parent
     environment: str = "development"
     google_client_id: str = ""
@@ -73,7 +113,6 @@ class Settings(BaseSettings):
     redis_socket_connect_timeout: int = 5
     redis_socket_timeout: int = 5
     redis_use_ssl: bool = False
-    secret_key: str | None = None  # Only used if algorithm is HS256
     ssl_cert_reqs: str | None = None
     ssl_certfile_path: Path | None = None
     ssl_keyfile_path: Path | None = None
@@ -81,9 +120,16 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="allow")
 
     def __post_init__(self):
-        """Post-initialization hook to ensure necessary directories and files exist.
+        """Perform post-initialization validation and directory creation.
 
-        Creates the logs directory and touches the log and SSL files to ensure their presence.
+        Ensures all file and directory paths for logging and SSL certificates exist,
+        and validates algorithm-specific configuration requirements.
+
+        Raises
+        ------
+        ValueError
+            If secret key is missing for HS256 algorithm.
+            If RSA keys or password are missing for RS256 algorithm.
         """
         self.logs_dir.mkdir(exist_ok=True)
         self.log_file.touch(exist_ok=True)
@@ -110,12 +156,12 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """
-    Return a cached singleton instance of application settings.
+    """Create and cache singleton Settings instance for application use.
 
-    Uses `lru_cache` to ensure settings are loaded only once.
-
-    Returns:
-        Settings: The singleton application settings instance.
+    Returns
+    -------
+    Settings
+        Cached singleton instance of application settings with all
+        configuration values loaded and validated.
     """
     return Settings()

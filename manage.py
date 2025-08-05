@@ -2,14 +2,15 @@ import click
 
 
 def import_from_alembic():
-    """Imports Alembic command and configuration objects.
+    """Import and configure Alembic command interface.
 
-    This helper function centralizes the import logic for Alembic,
-    ensuring that the `command` module and `Config` object are readily available
-    for various migration operations.
+    Centralizes Alembic imports and configuration setup to ensure consistent migration
+    handling across all management commands.
 
-    Returns:
-        A tuple containing the Alembic `command` module and the initialized `Config` object.
+    Returns
+    -------
+    Tuple[command.Command, config.Config]
+        Alembic command module and configured Config instance for executing migrations.
     """
     from alembic import command, config
 
@@ -19,54 +20,68 @@ def import_from_alembic():
 
 @click.group()
 def cli():
-    """Command-line interface for managing the application.
+    """Management command interface for the application.
 
-    This CLI provides various subcommands for database migrations, running the server,
-    and cleaning project artifacts.
+    Provides subcommands for database migration management, server control,
+    and project maintenance utilities.
     """
-
     pass
 
 
 @cli.command()
 @click.option("--message", "-m", required=True, help="Migration message")
 def makemigrations(message):
-    """Creates a new Alembic migration script.
+    """Generate new Alembic migration from model changes.
 
-    This command generates a new migration file based on changes detected in the database models.
-    A descriptive message for the migration is required.
+    Analyzes current SQLModel definitions against database schema
+    and creates a new migration file with detected changes.
+    Requires a descriptive message for migration identification.
 
-    Args:
-        message: A string describing the purpose of the migration (e.g., "Add users table").
+    Parameters
+    ----------
+    message: str
+        Descriptive message explaining the migration purpose.
+        Should be concise but informative (e.g., "Add user authentication").
+
+    Examples
+    --------
+    Create migration for new user table:
+        $ python manage.py makemigrations -m "Add user table"
+
+    Create migration for column changes:
+        $ python manage.py makemigrations -m "Add email verification field"
     """
-
     command, alembic_cfg = import_from_alembic()
-
     command.revision(alembic_cfg, autogenerate=True, message=message)
     click.echo(f"Migration created: {message}")
 
 
 @cli.command()
 def migrate():
-    """Applies all pending Alembic migrations to the database.
+    """Apply all pending database migrations.
 
-    This command upgrades the database schema to the latest version defined by the migration scripts.
+    Executes unapplied migrations in chronological order to bring database schema
+    up to date with current model definitions.
+
+    Raises
+    ------
+    AlembicError
+        If migration conflicts exist or database connection fails.
     """
-
     command, alembic_cfg = import_from_alembic()
-
     command.upgrade(alembic_cfg, "head")
     click.echo("Migrations completed")
 
 
 @cli.command()
 def runserver():
-    """Runs the FastAPI development server.
+    """Start a FastAPI development server instance.
 
-    This command starts the Uvicorn server, which hosts the FastAPI application.
-    It uses `runpy` to execute the `main.py` module as a script.
+    Launches the application using the main module's entry point
+    with development-optimized settings including auto-reload
+    and debug logging when configured.
+    Uses `runpy` to execute the `main.py` module as a script.
     """
-
     import runpy
 
     runpy.run_module("main", run_name="__main__")
@@ -74,12 +89,12 @@ def runserver():
 
 @cli.command()
 def clean():
-    """Removes Python cache directories (__pycache__) and Ruff cache directories.
+    """Remove Python cache and build artifacts.
 
-    This command helps in cleaning up generated build artifacts and cache files
-    which can sometimes cause issues or consume unnecessary disk space.
+    Recursively removes __pycache__ directories, .pyc files,
+    and Ruff cache directories to resolve import issues and remove clutter
+    from development environment.
     """
-
     import os
     import shutil
 
@@ -95,8 +110,9 @@ def clean():
 
 
 if __name__ == "__main__":
-    """Entry point for the command-line interface.
+    """CLI entry point for direct script execution.
 
-    When `manage.py` is executed directly, this block initiates the Click CLI application.
+    Initializes Click command group and processes command-line arguments
+    for development task execution.
     """
     cli()

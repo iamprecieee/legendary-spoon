@@ -34,16 +34,22 @@ async def create_user(
     user_repository=Depends(get_user_repository),
     password_service=Depends(get_password_service),
 ):
-    """Registers a new user with the provided email and password.
+    """Register a new user with provided email and password.
 
-    Args:
-        request: The `UserCreateRequest` containing the user's email and password.
-        user_repository: Dependency-injected user repository.
-        password_service: Dependency-injected password service for hashing passwords.
+    Parameters
+    ----------
+    request: UserCreateRequest
+        `UserCreateRequest` containing the user's email and password.
+    user_repository
+        Dependency-injected user repository.
+    password_service
+        Dependency-injected password service for hashing passwords.
 
-    Returns:
-        A `CreatedResponse` indicating successful user creation,
-        containing the newly created user's data.
+    Returns
+    -------
+    CreatedResponse
+        `CreatedResponse` indicating successful user creation,
+        containing newly created user's data.
     """
     create_user_rule = CreateUserRule(
         email=request.email,
@@ -65,20 +71,30 @@ async def login_user(
     token_service=Depends(get_jwt_token_service),
     refresh_token_repository=Depends(get_refresh_token_repository),
 ):
-    """Authenticates a user and provides access and refresh tokens upon successful login.
+    """Authenticate a user and provide access and refresh tokens upon successful login.
 
-    Args:
-        request: The `UserLoginRequest` containing the user's email and password.
-        user_repository: Dependency-injected user repository.
-        password_service: Dependency-injected password service for checking passwords.
-        token_service: Dependency-injected JWT token service for creating tokens.
-        refresh_token_repository: Dependency-injected refresh token repository for storing tokens.
+    Parameters
+    ----------
+    request: UserLoginRequest
+        `UserLoginRequest` containing the user's email and password.
+    user_repository
+        Dependency-injected user repository.
+    password_service
+        Dependency-injected password service for checking passwords.
+    token_service
+        Dependency-injected JWT token service for creating tokens.
+    refresh_token_repository
+        Dependency-injected refresh token repository for storing tokens.
 
-    Returns:
-        A `SuccessResponse` containing user data and the generated access and refresh tokens.
+    Returns
+    -------
+    SuccessResponse
+        `SuccessResponse` containing user data and generated access and refresh tokens.
 
-    Raises:
-        HTTPException: If authentication fails (e.g., incorrect credentials).
+    Raises
+    ------
+    HTTPException
+        If authentication fails (e.g., incorrect credentials).
     """
     login_user_rule = LoginUserRule(
         email=request.email,
@@ -89,7 +105,7 @@ async def login_user(
         refresh_token_repository=refresh_token_repository,
     )
     login_data = await login_user_rule.execute()
-    
+
     if not login_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User login failed"
@@ -110,19 +126,30 @@ async def refresh_token(
     refresh_token_repository=Depends(get_refresh_token_repository),
     current_user=Depends(get_current_user),
 ):
-    """Refreshes an expired access token using a valid refresh token.
+    """Refresh an expired access token using a valid refresh token.
 
-    Args:
-        request: The `RefreshRequest` containing the refresh token.
-        user_repository: Dependency-injected user repository.
-        token_service: Dependency-injected JWT token service for token operations.
-        refresh_token_repository: Dependency-injected refresh token repository for validating and revoking tokens.
+    Parameters
+    ----------
+    request: RefreshRequest
+        `RefreshRequest` containing the refresh token.
+    cache_service
+        Dependency-injected cache service.
+    token_service
+        Dependency-injected JWT token service for token operations.
+    refresh_token_repository
+        Dependency-injected refresh token repository for validating and revoking tokens.
+    current_user
+        Dependency-injected current authenticated user.
 
-    Returns:
-        A `SuccessResponse` containing new access and refresh tokens, and user data.
+    Returns
+    -------
+    SuccessResponse
+        `SuccessResponse` containing new access and refresh tokens, and user data.
 
-    Raises:
-        HTTPException: If the refresh token is invalid or expired.
+    Raises
+    ------
+    HTTPException
+        If refresh token is invalid or expired.
     """
     refresh_rule = RefreshTokenRule(
         refresh_token=request.refresh_token,
@@ -132,7 +159,7 @@ async def refresh_token(
         refresh_token_repository=refresh_token_repository,
     )
     refresh_data = await refresh_rule.execute()
-    
+
     if not refresh_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token refresh failed"
@@ -153,24 +180,34 @@ async def login_for_access_token(
     token_service=Depends(get_jwt_token_service),
     refresh_token_repository=Depends(get_refresh_token_repository),
 ):
-    """Authenticates a user for OAuth2 password flow and returns an access token.
+    """Authenticate a user for OAuth2 password flow and return an access token.
 
-    This endpoint is typically used by clients implementing the OAuth2 password grant type.
-    It's excluded from OpenAPI schema as it's primarily for machine-to-machine communication
+    Used by clients implementing the OAuth2 password grant type.
+    Excluded from OpenAPI schema as it is primarily for machine-to-machine communication
     or specific client integrations.
 
-    Args:
-        form_data: OAuth2 form data containing username (email) and password.
-        user_repository: Dependency-injected user repository.
-        password_service: Dependency-injected password service for checking passwords.
-        token_service: Dependency-injected JWT token service for creating tokens.
-        refresh_token_repository: Dependency-injected refresh token repository for storing tokens.
+    Parameters
+    ----------
+    form_data: OAuth2PasswordRequestForm
+        OAuth2 form data containing username (email) and password.
+    user_repository
+        Dependency-injected user repository.
+    password_service
+        Dependency-injected password service for checking passwords.
+    token_service
+        Dependency-injected JWT token service for creating tokens.
+    refresh_token_repository
+        Dependency-injected refresh token repository for storing tokens.
 
-    Returns:
-        A `TokenResponse` containing the access token and other token details.
+    Returns
+    -------
+    TokenResponse
+        `TokenResponse` containing the access token and other token details.
 
-    Raises:
-        HTTPException: If authentication fails (e.g., incorrect credentials).
+    Raises
+    ------
+    HTTPException
+        If authentication fails (e.g., incorrect credentials).
     """
     login_user_rule = LoginUserRule(
         email=form_data.username,
@@ -181,7 +218,7 @@ async def login_for_access_token(
         refresh_token_repository=refresh_token_repository,
     )
     login_data = await login_user_rule.execute()
-    
+
     if not login_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -202,18 +239,29 @@ async def logout_user(
     blacklist_token_repository=Depends(get_blacklist_token_repository),
     current_user=Depends(get_current_user),
 ):
-    """Logs out the current user by blacklisting their access token and revoking their refresh token.
+    """Log out the current user by blacklisting their access token and revoking their refresh token.
 
-    Args:
-        request: The `LogoutRequest` containing the refresh token to be revoked (optional).
-        access_token: The current access token, extracted from the Authorization header.
-        token_service: Dependency-injected JWT token service for token decoding.
-        refresh_token_repository: Dependency-injected refresh token repository.
-        blacklist_token_repository: Dependency-injected blacklist token repository.
-        current_user: Dependency-injected current authenticated user (ensures user is logged in).
+    Parameters
+    ----------
+    request: LogoutRequest
+        `LogoutRequest` containing the refresh token to be revoked (optional).
+    access_token: str
+        Current access token, extracted from the Authorization header.
+    cache_service
+        Dependency-injected cache service.
+    token_service
+        Dependency-injected JWT token service for token decoding.
+    refresh_token_repository
+        Dependency-injected refresh token repository.
+    blacklist_token_repository
+        Dependency-injected blacklist token repository.
+    current_user
+        Dependency-injected current authenticated user (ensures user is logged in).
 
-    Returns:
-        A `SuccessResponse` indicating successful logout.
+    Returns
+    -------
+    SuccessResponse
+        `SuccessResponse` indicating successful logout.
     """
     logout_rule = LogoutRule(
         user_id=current_user.id,
@@ -234,15 +282,19 @@ async def logout_user(
 async def google_login(
     oauth_service=Depends(get_google_oauth_service),
 ):
-    """Initiates the Google OAuth 2.0 login flow.
+    """Initiate the Google OAuth 2.0 login flow.
 
     Redirects the user to Google's authentication page to grant permissions.
 
-    Args:
-        oauth_service: Dependency-injected Google OAuth service.
+    Parameters
+    ----------
+    oauth_service
+        Dependency-injected Google OAuth service.
 
-    Returns:
-        A `SuccessResponse` containing the Google authorization URL.
+    Returns
+    -------
+    SuccessResponse
+        `SuccessResponse` containing the Google authorization URL.
     """
     google_login_rule = OAuthLoginRule(oauth_service=oauth_service)
     oauth_url = google_login_rule.execute()
@@ -262,21 +314,30 @@ async def google_callback(
     refresh_token_repository=Depends(get_refresh_token_repository),
     password_service=Depends(get_password_service),
 ):
-    """Handles the callback from Google OAuth 2.0 after user authentication.
+    """Handle the callback from Google OAuth 2.0 after user authentication.
 
-    Exchanges the authorization code for tokens, fetches user information,
-    creates a new user if necessary, and logs them in.
 
-    Args:
-        code: The authorization code received from Google.
-        oauth_service: Dependency-injected Google OAuth service.
-        user_repository: Dependency-injected user repository.
-        token_service: Dependency-injected JWT token service.
-        refresh_token_repository: Dependency-injected refresh token repository.
-        password_service: Dependency-injected password service.
+    Parameters
+    ----------
+    code: str
+        Authorization code received from Google.
+    cache_service
+        Dependency-injected cache service.
+    oauth_service
+        Dependency-injected Google OAuth service.
+    user_repository
+        Dependency-injected user repository.
+    token_service
+        Dependency-injected JWT token service.
+    refresh_token_repository
+        Dependency-injected refresh token repository.
+    password_service
+        Dependency-injected password service.
 
-    Returns:
-        A `SuccessResponse` containing user data and access/refresh tokens,
+    Returns
+    -------
+    SuccessResponse
+        `SuccessResponse` containing user data and access/refresh tokens,
         with a message indicating if a new user was created.
     """
     oauth_callback_rule = OAuthCallbackRule(
