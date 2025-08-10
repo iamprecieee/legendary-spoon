@@ -6,7 +6,6 @@ from alembic.config import Config
 
 from .base import Settings, get_settings
 
-
 _engine: AsyncEngine | None = None
 
 

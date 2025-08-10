@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from core.infrastructure.factory import get_redis_cache_service
+from cache.infrastructure.factory import get_redis_cache_service
 from core.presentation.responses import CreatedResponse, SuccessResponse
 from users.infrastructure.factory import get_user_repository
 

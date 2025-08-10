@@ -1,9 +1,9 @@
 from config.base import get_settings
 
-from .services import DataSanitizer, RedisCacheService
+from .services import DataSanitizer, RedisService
 
 _data_sanitizer = None
-_redis_cache_service = None
+_redis_service = None
 
 
 async def get_data_sanitizer() -> DataSanitizer:
@@ -22,28 +22,28 @@ async def get_data_sanitizer() -> DataSanitizer:
     return _data_sanitizer
 
 
-async def get_redis_cache_service() -> RedisCacheService:
-    """Provide a singleton `RedisCacheService` instance.
+async def get_redis_service() -> RedisService:
+    """Provide a singleton `RedisService` instance.
 
     Returns
     -------
-    RedisCacheService
-        Instance of `RedisCacheService`.
+    RedisService
+        Instance of `RedisService`.
     """
-    global _redis_cache_service
+    global _redis_service
 
-    if _redis_cache_service is None:
+    if _redis_service is None:
         settings = get_settings()
-        _redis_cache_service = RedisCacheService(settings)
+        _redis_service = RedisService(settings)
 
-    return _redis_cache_service
+    return _redis_service
 
 
-async def close_redis_cache_service():
-    """Close the singleton Redis cache service properly."""
-    global _redis_cache_service
+async def close_redis_service():
+    """Close the singleton Redis service properly."""
+    global _redis_service
 
-    if _redis_cache_service:
-        await _redis_cache_service.close()
+    if _redis_service:
+        await _redis_service.close()
 
-        _redis_cache_service = None
+        _redis_service = None

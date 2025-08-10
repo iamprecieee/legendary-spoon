@@ -45,6 +45,8 @@ class Settings(BaseSettings):
         Directory for log files.
     log_file: Path, derived from base_dir
         Main log file path.
+    port: int, default=8000
+        Uvicorn server startup port
     private_key_password: str | None, optional
         Password for RSA private key encryption.
     private_key_path: Path | None, optional
@@ -103,6 +105,7 @@ class Settings(BaseSettings):
     min_password_length: int = 8
     logs_dir: Path = base_dir / "logs"
     log_file: Path = logs_dir / "phantom.log"
+    port: int = 8000
     private_key_password: str | None = None
     private_key_path: Path | None = None
     public_key_path: Path | None = None

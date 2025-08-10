@@ -1,7 +1,7 @@
 import secrets
 from typing import Tuple
 
-from core.application.ports import CacheServiceInterface
+from cache.application.ports import CacheServiceInterface
 from users.application.ports import UserRepository
 from users.domain.entities import User as DomainUser
 

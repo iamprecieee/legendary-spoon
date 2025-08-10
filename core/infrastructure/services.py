@@ -1,15 +1,10 @@
-import hashlib
-import pickle
 import re
 from typing import Any, Dict, List, Pattern, Tuple
 from urllib.parse import urlparse, urlunparse
 
-import msgpack
 from redis.asyncio import Redis
 
 from config.base import Settings
-
-from ..application.ports import CacheServiceInterface
 
 
 class DataSanitizer:
@@ -40,7 +35,7 @@ class DataSanitizer:
         ]
 
         self.email_pattern = re.compile(
-            r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+            r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
         )
         self.url_with_params_pattern = re.compile(
             r"(?:https?://[^\s]+\?[^\s]+|[^\s]*\?[^\s&=]+=[^\s&=]+(?:&[^\s&=]+=[^\s&=]+)*)"
@@ -238,7 +233,7 @@ class DataSanitizer:
         str
             Sanitized and potentially truncated string.
         """
-        if not isinstance(text, str):
+        if not type(text) == str:
             text = str(text)
 
         if len(text) > max_length:
@@ -247,6 +242,17 @@ class DataSanitizer:
         text = self.email_pattern.sub(lambda m: self._mask_email(m.group()), text)
         text = self.url_with_params_pattern.sub(
             lambda m: self._sanitize_url_with_params(m.group()), text
+        )
+
+        # Mask loose query-like patterns anywhere in text (key=value)
+        text = re.sub(
+            r"([?&]?(?:\w+))=([^&\s]+)",
+            lambda m: (
+                f"{m.group(1)}=***MASKED***"
+                if self._is_sensitive_field(m.group(1))
+                else m.group(0)
+            ),
+            text,
         )
 
         def sanitize_query_match(match):
@@ -423,15 +429,9 @@ class DataSanitizer:
         return tuple(sanitized_args)
 
 
-class RedisCacheService(CacheServiceInterface):
-    """Concrete implementation of `CacheServiceInterface` using Redis as the caching backend.
-
-    Provides methods for storing, retrieving, and deleting data from Redis,
-    handling serialization and deserialization of Python objects.
-    """
-
+class RedisService:
     def __init__(self, settings: Settings):
-        """Initializes the RedisCacheService.
+        """Initializes the RedisService.
 
         Establishes connection parameters for Redis.
 
@@ -471,125 +471,6 @@ class RedisCacheService(CacheServiceInterface):
 
         return self._redis
 
-    @staticmethod
-    def get_cache_key(key_prefix: str, func_name: str, *args, **kwargs) -> str:
-        """Generate a unique cache key based on function arguments.
-
-        Creates a consistent and unique string representation
-        of the arguments passed to a cached function, which is then hashed.
-
-        Parameters
-        ----------
-        key_prefix: str
-            String value to identify the key.
-        func_name: str
-            Name of function/method being cached.
-        *args
-            Positional arguments passed to the function.
-        **kwargs
-            Keyword arguments passed to the function.
-
-        Returns
-        -------
-        str
-            String concat of a hexadecimal MD5 hash string, prefix, and func_name representing the unique cache key.
-        """
-        key_parts = []
-
-        for i, arg in enumerate(args):
-            if i == 0 and hasattr(arg, "__dict__") and hasattr(arg, "__class__"):
-                continue
-
-            key_parts.append(f"arg{i}:{str(arg)}")
-
-        for key, value in sorted(kwargs.items()):
-            key_parts.append(f"{key}:{str(value)}")
-
-        key_string = "|".join(key_parts)
-        key_suffix = hashlib.md5(key_string.encode()).hexdigest()
-
-        return (
-            f"{key_prefix}:{func_name}:{key_suffix}"
-            if key_prefix
-            else f"{func_name}:{key_suffix}"
-        )
-
-    async def get(self, key: str) -> Any:
-        """Retrieve a value from Redis by its key.
-
-        Parameters
-        ----------
-        key: str
-            Key of the item to retrieve.
-
-        Returns
-        -------
-        Any
-            Deserialized cached value, or None if key does not exist.
-        """
-        try:
-            redis_client = await self._get_redis()
-            data = await redis_client.get(key)
-            if data is None:
-                return None
-
-            return self._deserialize_data(data)
-
-        except Exception as e:
-            raise e
-
-    async def set(self, key: str, value: Any, timeout: int | None = None) -> bool:
-        """Set a key-value pair in Redis with an optional expiration timeout.
-
-        Parameters
-        ----------
-        key: str
-            Key for the item.
-        value: Any
-            Value to be cached.
-        timeout: int | None, optional
-            Expiration time in seconds. If None, use the default cache timeout from settings.
-
-        Returns
-        -------
-        bool
-
-        """
-        try:
-            redis_client = await self._get_redis()
-            serialized_value = self._serialize_value(value)
-            timeout = timeout or self._settings.cache_timeout_seconds
-            if timeout is not None:
-                result = await redis_client.setex(key, timeout, serialized_value)
-            else:
-                result = await redis_client.set(key, serialized_value)
-
-            return bool(result)
-
-        except Exception as e:
-            raise e
-
-    async def delete(self, key: str) -> bool:
-        """Delete a key-value pair from Redis.
-
-        Parameters
-        ----------
-        key: str
-            Key of the item to delete.
-
-        Returns
-        -------
-        bool
-
-        """
-        try:
-            redis_client = await self._get_redis()
-            result = await redis_client.delete(key)
-            return result > 0
-
-        except Exception as e:
-            raise e
-
     async def close(self) -> None:
         """Close the Redis connection."""
         if self._redis:
@@ -599,45 +480,3 @@ class RedisCacheService(CacheServiceInterface):
                 await self._redis.connection_pool.disconnect()
 
             self._redis = None
-
-    def _serialize_value(self, value: Any) -> bytes:
-        """Serialize a Python object into bytes for storage in Redis.
-
-        Attempts to use `msgpack` first, then falls back to `pickle` for complex types.
-
-        Parameters
-        ----------
-        value: Any
-            Python object to serialize.
-
-        Returns
-        -------
-        bytes
-            Serialized object as bytes.
-        """
-        try:
-            return msgpack.packb(value, use_bin_type=True)
-
-        except (ValueError, TypeError):
-            return pickle.dumps(value)
-
-    def _deserialize_data(self, data: bytes) -> Any:
-        """Deserialize bytes retrieved from Redis back into a Python object.
-
-        Attempts to use `msgpack` first, then falls back to `pickle`.
-
-        Parameters
-        ----------
-        data: bytes
-            Bytes retrieved from Redis.
-
-        Returns
-        -------
-        Any
-            Deserialized Python object.
-        """
-        try:
-            return msgpack.unpackb(data, raw=False)
-
-        except (msgpack.exceptions.ExtraData, ValueError, TypeError):
-            return pickle.loads(data)

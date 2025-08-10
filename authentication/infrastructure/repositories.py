@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from core.infrastructure.decorators import cache
+from cache.infrastructure.decorators import cache
 
 from ..application.ports import (
     BlacklistTokenRepository as DomainBlacklistTokenRepository,
@@ -120,7 +120,7 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
                 RefreshToken.expires_at > datetime.now(),
             )
         )
-        pydantic_refresh_token = refresh_token_data.first()
+        pydantic_refresh_token = refresh_token_data.scalars().first()
 
         if not pydantic_refresh_token:
             raise HTTPException(
@@ -128,7 +128,6 @@ class RefreshTokenRepository(DomainRefreshTokenRepository):
                 detail="Refresh token not found or does not belong to user",
             )
 
-        pydantic_refresh_token = pydantic_refresh_token[0]
         pydantic_refresh_token.is_revoked = True
         self._session.add(pydantic_refresh_token)
 

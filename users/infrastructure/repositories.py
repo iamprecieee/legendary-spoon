@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from core.infrastructure.decorators import cache
+from cache.infrastructure.decorators import cache
 
 from ..application.ports import UserRepository as DomainUserRepository
 from ..domain.entities import User as DomainUser
@@ -173,14 +173,13 @@ class UserRepository(DomainUserRepository):
         user_data = await self._session.execute(
             select(User).where(User.email == user_email)
         )
-        pydantic_user = user_data.first()
+        pydantic_user = user_data.scalars().first()
 
         if not pydantic_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
-        pydantic_user = pydantic_user[0]
         pydantic_user.social_id = social_data.get("id")
         self._session.add(pydantic_user)
 

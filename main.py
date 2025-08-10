@@ -32,10 +32,7 @@ def create_app():
 
     from config.database import close_database_engine, create_tables, run_migrations
     from core.infrastructure.exceptions import global_exception_handler
-    from core.infrastructure.factory import (
-        close_redis_cache_service,
-        get_redis_cache_service,
-    )
+    from core.infrastructure.factory import close_redis_service, get_redis_service
 
     @asynccontextmanager
     async def custom_lifespan(app):
@@ -75,9 +72,8 @@ def create_app():
 
         try:
             logger.debug("🔧 Initializing Redis connection...")
-            redis_service = await get_redis_cache_service()
-            redis_client = await redis_service._get_redis()
-            ping_result = await redis_client.ping()
+            redis_service = await (await get_redis_service())._get_redis()
+            ping_result = await redis_service.ping()
             logger.info(f"🟢 Redis pinged: <green>{ping_result}</green>.")
 
         except Exception as e:
@@ -93,7 +89,7 @@ def create_app():
 
         try:
             logger.debug("🔧 Closing Redis connection...")
-            await close_redis_cache_service()
+            await close_redis_service()
         except Exception as e:
             logger.error(f"🟠 Error closing Redis: {e}")
 
@@ -121,10 +117,12 @@ def create_app():
 
     try:
         from authentication.presentation import router as auth_router
+        from notifications.presentation import router as notification_router
         from users.presentation import router as user_router
 
         app.include_router(auth_router)
         app.include_router(user_router)
+        app.include_router(notification_router)
     except Exception as e:
         logger.error(f"🔴 Runtime error: {e}")
 
@@ -139,11 +137,11 @@ if __name__ == "__main__":
     setup_logging()
     settings = get_settings()
     logger.debug(
-        f"🟢 Starting Legendary Spoon in '{settings.environment.upper()}' mode!"
+        f"🟢 Starting Legendary Spoon in '{settings.environment.upper()}' mode..."
     )
     uvicorn.run(
         "main:create_app",
-        port=8001,
+        port=settings.port,
         reload=settings.debug,
         factory=True,
         log_config=None,

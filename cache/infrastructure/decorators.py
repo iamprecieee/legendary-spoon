@@ -3,7 +3,9 @@ from typing import Callable
 
 from loguru import logger
 
-from .factory import get_data_sanitizer, get_redis_cache_service
+from core.infrastructure.factory import get_data_sanitizer
+
+from .factory import get_redis_cache_service
 
 
 def cache(

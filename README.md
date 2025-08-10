@@ -46,11 +46,19 @@ legendary-spoon/
 │   ├── domain/             # Core authentication entities (e.g., tokens, blacklisted tokens)
 │   ├── infrastructure/     # Integrates with external services (password hashing, JWT handling, OAuth providers)
 │   └── presentation/       # API endpoints for authentication (login, register, refresh, logout, OAuth flows)
+├── cache/                  # Cache system implementation
+│   ├── application/        # Interface for cache service
+│   ├── infrastructure/     # Redis cache service components
 ├── config/                 # Application configuration settings (base, database, etc.)
 ├── core/                   # Shared utilities and foundational components
-│   ├── application/        # Common application interfaces (e.g., caching service interface)
-│   ├── infrastructure/     # Core infrastructure components (caching, exception handling, logging)
+│   ├── application/        # Common application interfaces (e.g., redis service)
+│   ├── infrastructure/     # Core infrastructure components (exception handling, logging)
 │   └── presentation/       # Standard API response models
+├── notifications/          # Real-time notification system with SSE
+│   ├── application/        # Business rules for notification management
+│   ├── domain/             # Core notification entities and types
+│   ├── infrastructure/     # Redis pub/sub and database repositories
+│   └── presentation/       # API endpoints including SSE streaming
 ├── users/                  # Manages user-related functionalities
 │   ├── application/        # Business rules and use cases for user management
 │   ├── domain/             # Core user entity
@@ -68,6 +76,7 @@ Before you start, make sure you have:
 
 *   **Python 3.10+**: The project is developed and tested with Python 3.10 and above.
 *   **SQLite**: The default database for development.
+*   **Redis**: Required for caching and real-time notification features.
 *   **uv**: A modern, fast Python package installer and dependency manager.
 
 ## Setup Instructions ⚙️
@@ -87,7 +96,9 @@ Getting Legendary Spoon up and running is a breeze!
     uv sync
     ```
 
-3.  **Configure environment variables:**
+3.  **Install and configure Redis.**
+
+4.  **Configure environment variables:**
     *   Create a `.env` file in the root directory.
     *   Add the required variables. Check `config/base.py` for a full list of settings. Essential ones include:
         *   `SECRET_KEY="your_super_secret_key_here"`
@@ -115,12 +126,12 @@ Getting Legendary Spoon up and running is a breeze!
         openssl rsa -in private_key.pem -pubout -out public_key.pem
         ```
 
-4.  **Run database migrations:**
+5.  **Run database migrations:**
     ```bash
     python manage.py migrate
     ```
 
-5.  **Start the application:**
+6.  **Start the application:**
     ```bash
     python manage.py runserver
     ```
@@ -133,6 +144,7 @@ Explore the API endpoints and functionalities:
 
 *   **Interactive API Docs**: Once the server is running, head over to `http://localhost:8001/docs` (Swagger UI) or `http://localhost:8001/redoc` (ReDoc) to interact with the API endpoints. All endpoints now feature detailed docstrings for easy understanding!
 *   **Authentication Endpoints**: All authentication-related operations (register, login, refresh tokens, logout, Google OAuth) are available under the `/auth` prefix.
+*   **Notification Endpoints**: Real-time notification system endpoints are available under the `/notifications` prefix.
 *   **User Management Endpoints**: User-specific operations, such as fetching the current user details (`/users/me`), are available under the `/users` prefix.
 *   **Logging**: Check the `logs/phantom.log` file for detailed application logs. Critical errors are also logged to `logs/phantom_errors.log`.
 
