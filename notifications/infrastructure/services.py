@@ -11,7 +11,10 @@ from ..domain.entities import NotificationChannel
 
 
 class RedisNotificationChannelManager(NotificationChannelManager):
-    """Redis-based implementation of notification channel management."""
+    """Redis-based implementation of notification channel management.
+
+    Tracks user last seen timestamps on channels.
+    """
 
     def __init__(self, redis_service: RedisService):
         """Initialize the Redis channel manager.
@@ -23,13 +26,15 @@ class RedisNotificationChannelManager(NotificationChannelManager):
         """
         self.redis_service = redis_service
         self._channel_prefix = "notification_channels"
+        self._last_seen_prefix = "user_last_seen"
 
     async def register_channel(
         self, user_id: int, channel_id: str
     ) -> NotificationChannel:
         """Register a new notification channel in Redis.
 
-        Stores channel data in Redis with expiration and adds to user's channel set.
+        Stores channel data in Redis with expiration,
+        and adds to user's channel set.
 
         Parameters
         ----------
@@ -66,6 +71,7 @@ class RedisNotificationChannelManager(NotificationChannelManager):
 
         user_channels_key = f"{self._channel_prefix}:user:{user_id}"
         await redis_client.sadd(user_channels_key, channel_id)
+        await redis_client.expire(user_channels_key, 3600)
 
         logger.info(f"Registered channel {channel_id} for user {user_id}")
 
@@ -74,8 +80,10 @@ class RedisNotificationChannelManager(NotificationChannelManager):
     async def unregister_channel(self, channel_id: str) -> bool:
         """Unregister a notification channel from Redis.
 
-        Gets channel data before deletion, removes it from user's channel set,
-        and delete channel data.
+        Gets channel data before deletion,
+        removes it from user's channel set,
+        updates last seen timestamp,
+        and deletes channel data.
 
         Parameters
         ----------
@@ -96,6 +104,8 @@ class RedisNotificationChannelManager(NotificationChannelManager):
             user_id = channel_data.get("user_id")
 
             if user_id:
+                await self._update_user_last_seen(user_id)
+
                 user_channels_key = f"{self._channel_prefix}:user:{user_id}"
                 await redis_client.srem(user_channels_key, channel_id)
 
@@ -168,6 +178,45 @@ class RedisNotificationChannelManager(NotificationChannelManager):
             return True
 
         return False
+
+    async def get_user_last_seen(self, user_id: int) -> datetime | None:
+        """Get the last seen timestamp for a user.
+
+        Parameters
+        ----------
+        user_id : int
+            User ID
+
+        Returns
+        -------
+        datetime | None
+            Last seen timestamp or None if not found
+        """
+        redis_client = await self.redis_service._get_redis()
+        last_seen_key = f"{self._last_seen_prefix}:{user_id}"
+
+        last_seen = await redis_client.get(last_seen_key)
+
+        if last_seen:
+            return datetime.fromisoformat(last_seen.decode("utf-8"))
+
+        return None
+
+    async def _update_user_last_seen(self, user_id: int) -> None:
+        """Update the last seen timestamp for a user.
+
+        Parameters
+        ----------
+        user_id : int
+            User ID
+        """
+        redis_client = await self.redis_service._get_redis()
+        last_seen_key = f"{self._last_seen_prefix}:{user_id}"
+
+        await redis_client.set(
+            last_seen_key, datetime.now(tz=UTC).isoformat(), ex=30 * 24 * 3600
+        )
+        logger.info(f"Updated last seen for user {user_id}")
 
 
 class RedisNotificationPublisher(NotificationPublisher):
