@@ -208,12 +208,14 @@ async def mark_notification_read(
 async def stream_notifications(
     publisher=Depends(get_notification_publisher),
     channel_manager=Depends(get_notification_channel_manager),
+    notification_repository=Depends(get_notification_repository),
     current_user: DomainUser = Depends(get_current_user),
 ):
     """Establish Server-Sent Events connection for real-time notifications.
 
     Opens a persistent connection for streaming notifications to the client
-    using Server-Sent Events (SSE) protocol.
+    using Server-Sent Events (SSE) protocol,
+    and includes automatic missed notification delivery.
 
     Parameters
     ----------
@@ -221,6 +223,8 @@ async def stream_notifications(
         Dependency-injected notification publisher
     channel_manager
         Dependency-injected channel manager
+    notification_repository
+        Dependency-injected notification repository
     current_user : DomainUser
         Current authenticated user
 
@@ -234,6 +238,7 @@ async def stream_notifications(
     sse_rule = EstablishSSEConnectionRule(
         user_id=current_user.id,
         publisher=publisher,
+        notification_repository=notification_repository,
         channel_manager=channel_manager,
     )
 

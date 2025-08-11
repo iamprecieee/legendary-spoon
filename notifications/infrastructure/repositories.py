@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List
 
 from sqlalchemy.exc import IntegrityError
@@ -105,10 +106,13 @@ class NotificationRepository(DomainNotificationRepository):
         query = query.order_by(desc(Notification.created_at))
         query = query.limit(limit).offset(offset)
 
-        result = await self._session.execute(query)
-        notifications = result.scalars().all()
+        pydantic_notifications = await self._session.execute(query)
+        pydantic_notifications = pydantic_notifications.scalars().all()
 
-        return [self._to_domain_model(n) for n in notifications]
+        return [
+            self._to_domain_model(notification)
+            for notification in pydantic_notifications
+        ]
 
     async def mark_as_read(self, notification_id: int, user_id: int) -> bool:
         """Mark a notification as read.
@@ -151,6 +155,48 @@ class NotificationRepository(DomainNotificationRepository):
                 raise e
 
         return False
+
+    async def get_missed_notifications(
+        self, user_id: int, last_timestamp: datetime, limit: int = 50
+    ) -> List[DomainNotification]:
+        """Get notifications for user created after specified timestamp.
+
+        Parameters
+        ----------
+        user_id : int
+            ID of the user
+        last_timestamp : datetime
+            Timestamp to filter notifications created after
+        limit : int
+            Maximum number of notifications to return
+
+        Returns
+        -------
+        List[DomainNotification]
+            List of notifications created after the specified timestamp"""
+        query = (
+            select(Notification)
+            .where(
+                and_(
+                    or_(
+                        Notification.recipient_id == user_id,
+                        Notification.recipient_id.is_(None),
+                    ),
+                    Notification.created_at > last_timestamp,
+                    Notification.is_read == False,
+                )
+            )
+            .order_by(Notification.created_at.asc())
+            .limit(limit)
+        )
+
+        pydantic_notifications = await self._session.execute(query)
+        pydantic_notifications = pydantic_notifications.scalars().all()
+
+        return [
+            self._to_domain_model(notification)
+            for notification in pydantic_notifications
+        ]
 
     def _to_pydantic_model(
         self, domain_notification: DomainNotification
